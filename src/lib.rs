@@ -1,3 +1,5 @@
 mod macros;
+mod vault;
+mod handlers;
 
-// Other imports and code
+entrypoint!(crate::handlers::process_instructions);
