@@ -1,3 +1,4 @@
+#[macro_use]
 mod macros;
 mod vault;
 mod handlers;
