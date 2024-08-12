@@ -86,10 +86,9 @@ mod price_feed {
 
         #[ink(message)]
         pub fn fetch_price(&self, token: AccountId) -> Option<u128> {
-            // Logic to fetch price
+            
             self.price_records.get(&token).map(|record| record.scaled_price)
         }
 
-        // Additional methods for processing feed responses, etc.
     }
 }
