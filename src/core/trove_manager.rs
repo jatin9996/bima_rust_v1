@@ -64,13 +64,21 @@ impl TroveManager {
         }
     }
 
-    // Mimic other functions from the Solidity contract
-    // Each function should modify the state of the contract and handle errors appropriately
+    // Function to adjust the base rate
+    pub fn adjust_base_rate(&mut self, adjustment: u128, caller: String) -> Result<(), String> {
+        if self.owner == caller {
+            self.base_rate = self.base_rate.saturating_add(adjustment);
+            Ok(())
+        } else {
+            Err("Unauthorized: caller is not the owner".to_string())
+        }
+    }
+
 }
 
 fn main() {
     let mut manager = TroveManager::new();
-    // Example usage
+    
     match manager.set_paused(true) {
         Ok(_) => println!("Contract is paused"),
         Err(e) => println!("Error: {}", e),
