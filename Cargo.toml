@@ -8,4 +8,21 @@ borsh = "1.5.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 risc0-zkvm = "1.0.5" 
+ink_lang = { version = "3.0", default-features = false }
+ink_env = { version = "4.0.0", default-features = false }
+num-bigint = "0.4.0"
+num-traits = "0.2.14"
+ink_storage = "3.0.0"
 
+
+[features]
+default = ["std"]
+std = [
+    "ink_lang/std",
+    "ink_storage/std",
+]
+
+no_std = [
+    "ink_lang/no_std",
+    "ink_storage/no_std",
+]

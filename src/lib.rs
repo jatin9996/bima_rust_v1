@@ -7,3 +7,4 @@ mod core;
 mod staking;
 
 entrypoint!(crate::handlers::process_instructions);
+
