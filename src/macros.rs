@@ -1,6 +1,8 @@
 #[macro_export]
 macro_rules! entrypoint {
     ($handler:path) => {
+        use crate::instruction::Instruction; // Adjust the path as necessary
+
         #[no_mangle]
         pub extern "C" fn entrypoint(input: *const u8, length: usize) -> u64 {
             let data = unsafe { std::slice::from_raw_parts(input, length) };
