@@ -1,5 +1,7 @@
 use std::collections::HashMap;
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::dependecies::delegated_ops::DelegatedOps;
+use crate::dependecies::system_start::SystemStart;
+use crate::interfaces::token_locker::ITokenLocker;
 
 type AccountId = String;
 type Timestamp = u64;
@@ -10,7 +12,7 @@ pub struct Proposal {
     created_at: Timestamp,
     can_execute_after: Timestamp,
     current_weight: u64,
-    required_weight: u64,
+    required_weight: u64,   
     processed: bool,
 }
 
@@ -21,7 +23,7 @@ pub struct Action {
 }
 
 pub struct AdminVoting {
-    token_locker: TokenLocker,
+    token_locker: Box<dyn ITokenLocker>,
     babel_core: AccountId,
     proposal_data: HashMap<u32, Proposal>,
     proposal_payloads: HashMap<u32, Vec<Action>>,
@@ -29,10 +31,11 @@ pub struct AdminVoting {
     latest_proposal_timestamp: HashMap<AccountId, Timestamp>,
     min_create_proposal_pct: u32,
     passing_pct: u32,
+    system_start: SystemStart,
 }
 
 impl AdminVoting {
-    pub fn new(token_locker: TokenLocker, babel_core: AccountId, min_create_proposal_pct: u32, passing_pct: u32) -> Self {
+    pub fn new(token_locker: Box<dyn ITokenLocker>, babel_core: AccountId, min_create_proposal_pct: u32, passing_pct: u32, system_start: SystemStart) -> Self {
         Self {
             token_locker,
             babel_core,
@@ -42,23 +45,24 @@ impl AdminVoting {
             latest_proposal_timestamp: HashMap::new(),
             min_create_proposal_pct,
             passing_pct,
+            system_start,
         }
     }
 
     pub fn create_new_proposal(&mut self, account: AccountId, payload: Vec<Action>) {
-        let current_time = self.current_timestamp();
+        let current_time = self.system_start.get_week();
         let last_proposal_time = *self.latest_proposal_timestamp.get(&account).unwrap_or(&0);
 
         if current_time <= last_proposal_time + Self::min_time_between_proposals() {
             panic!("Minimum time between proposals not met");
         }
 
-        let week = self.calculate_week_number(current_time);
+        let week = current_time;
         if week == 0 {
             panic!("No proposals in the first week");
         }
 
-        let account_weight = self.token_locker.get_account_weight_at(&account, week - 1);
+        let account_weight = self.token_locker.get_account_weight_at(account.clone(), week - 1).unwrap();
         let min_weight = self.min_create_proposal_weight(week - 1);
 
         if account_weight < min_weight {
@@ -81,37 +85,16 @@ impl AdminVoting {
     }
 
     fn calculate_required_weight(&self, week: u32, pct: u32) -> u64 {
-        let total_weight = self.token_locker.get_total_weight_at(week);
+        let total_weight = self.token_locker.get_total_weight_at(week).unwrap();
         (total_weight * pct as u64) / 10000
     }
 
     fn min_create_proposal_weight(&self, week: u32) -> u64 {
-        let total_weight = self.token_locker.get_total_weight_at(week);
+        let total_weight = self.token_locker.get_total_weight_at(week).unwrap();
         (total_weight * self.min_create_proposal_pct as u64) / 10000
-    }
-
-    fn calculate_week_number(&self, timestamp: Timestamp) -> u32 {
-        timestamp / (7 * 24 * 60 * 60)
-    }
-
-    fn current_timestamp() -> Timestamp {
-        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
     }
 
     fn min_time_between_proposals() -> Timestamp {
         24 * 60 * 60 // 24 hours
-    }
-}
-
-// Mock implementation of TokenLocker for demonstration
-pub struct TokenLocker;
-
-impl TokenLocker {
-    pub fn get_account_weight_at(&self, _account: &AccountId, _week: u32) -> u64 {
-        1000 // Dummy implementation
-    }
-
-    pub fn get_total_weight_at(&self, _week: u32) -> u64 {
-        10000 // Dummy implementation
     }
 }

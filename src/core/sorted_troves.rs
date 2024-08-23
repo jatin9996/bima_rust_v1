@@ -1,3 +1,4 @@
+use crate::interfaces::trove_manager::{TroveManager, Trove}; // Import TroveManager and Trove
 use std::collections::HashMap;
 
 struct Node {
@@ -6,8 +7,8 @@ struct Node {
     prev_id: Option<String>,
 }
 
-struct SortedTroves {
-    trove_manager: String, 
+struct SortedTroves<'a> { // Use a lifetime parameter
+    trove_manager: &'a TroveManager, // Reference to TroveManager
     data: Data,
 }
 
@@ -18,8 +19,8 @@ struct Data {
     nodes: HashMap<String, Node>,
 }
 
-impl SortedTroves {
-    pub fn new(trove_manager: String) -> Self {
+impl<'a> SortedTroves<'a> {
+    pub fn new(trove_manager: &'a TroveManager) -> Self {
         SortedTroves {
             trove_manager,
             data: Data {
@@ -32,30 +33,33 @@ impl SortedTroves {
     }
 
     pub fn insert(&mut self, id: String, prev_id: Option<String>, next_id: Option<String>) {
-        let node = Node {
-            exists: true,
-            next_id: next_id.clone(),
-            prev_id: prev_id.clone(),
-        };
+        // Example usage of TroveManager
+        if self.trove_manager.troves.contains_key(&id) {
+            let node = Node {
+                exists: true,
+                next_id: next_id.clone(),
+                prev_id: prev_id.clone(),
+            };
 
-        if let Some(prev_id) = prev_id {
-            if let Some(prev_node) = self.data.nodes.get_mut(&prev_id) {
-                prev_node.next_id = Some(id.clone());
+            if let Some(prev_id) = prev_id {
+                if let Some(prev_node) = self.data.nodes.get_mut(&prev_id) {
+                    prev_node.next_id = Some(id.clone());
+                }
+            } else {
+                self.data.head = Some(id.clone());
             }
-        } else {
-            self.data.head = Some(id.clone());
-        }
 
-        if let Some(next_id) = next_id {
-            if let Some(next_node) = self.data.nodes.get_mut(&next_id) {
-                next_node.prev_id = Some(id.clone());
+            if let Some(next_id) = next_id {
+                if let Some(next_node) = self.data.nodes.get_mut(&next_id) {
+                    next_node.prev_id = Some(id.clone());
+                }
+            } else {
+                self.data.tail = Some(id.clone());
             }
-        } else {
-            self.data.tail = Some(id.clone());
-        }
 
-        self.data.nodes.insert(id, node);
-        self.data.size += 1;
+            self.data.nodes.insert(id, node);
+            self.data.size += 1;
+        }
     }
 
     pub fn remove(&mut self, id: String) {
@@ -99,7 +103,8 @@ impl SortedTroves {
 }
 
 fn main() {
-    let mut troves = SortedTroves::new("trove_manager_address".to_string());
+    let trove_manager = TroveManager::new();
+    let mut troves = SortedTroves::new(&trove_manager);
     troves.insert("node1".to_string(), None, None);
     troves.insert("node2".to_string(), Some("node1".to_string()), None);
     troves.remove("node1".to_string());

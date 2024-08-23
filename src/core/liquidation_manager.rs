@@ -1,11 +1,18 @@
 use std::collections::HashMap;
+use crate::interfaces::stability_pool::IStabilityPool;
+use crate::interfaces::sorted_troves::ISortedTroves;
+use crate::interfaces::borrower_operations::BorrowerOperations;
+use crate::interfaces::trove_manager::TroveManager;
+use crate::dependecies::babel_base::BabelBase;
+use crate::dependecies::babel_math::BabelMath;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct AccountId(String);  // Simplified representation of an account ID
 
 struct LiquidationManager {
-    stability_pool: AccountId,
-    borrower_operations: AccountId,
+    stability_pool: Box<dyn IStabilityPool>,
+    sorted_troves: Box<dyn ISortedTroves>,
+    borrower_operations: Box<dyn BorrowerOperations>,
     factory: AccountId,
     enabled_trove_managers: HashMap<AccountId, bool>,
 }
@@ -17,9 +24,10 @@ struct Liquidation {
 }
 
 impl LiquidationManager {
-    fn new(stability_pool: AccountId, borrower_operations: AccountId, factory: AccountId) -> Self {
+    fn new(stability_pool: Box<dyn IStabilityPool>, sorted_troves: Box<dyn ISortedTroves>, borrower_operations: Box<dyn BorrowerOperations>, factory: AccountId) -> Self {
         Self {
             stability_pool,
+            sorted_troves,
             borrower_operations,
             factory,
             enabled_trove_managers: HashMap::new(),
@@ -51,6 +59,7 @@ impl LiquidationManager {
 fn main() {
     let mut manager = LiquidationManager::new(
         AccountId("stability_pool".to_string()),
+        AccountId("sorted_troves".to_string()),
         AccountId("borrower_operations".to_string()),
         AccountId("factory".to_string()),
     );

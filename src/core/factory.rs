@@ -1,42 +1,36 @@
-use std::collections::HashMap;
-
-
-trait ITroveManager {}
-trait ISortedTroves {}
-
-struct DeploymentParams {
-    minute_decay_factor: u128,
-    redemption_fee_floor: u128,
-    max_redemption_fee: u128,
-    borrowing_fee_floor: u128,
-    max_borrowing_fee: u128,
-    interest_rate_in_bps: u128,
-    max_debt: u128,
-    mcr: u128,
-}
+use crate::dependencies::babel_ownable::BabelOwnable;
+use crate::interfaces::{
+    debt_token::DebtToken,
+    sorted_troves::ISortedTroves,
+    borrower_operations::BorrowerOperations,
+    trove_manager::TroveManager,
+    stability_pool::IStabilityPool,
+    liquidation_manager::ILiquidationManager,
+};
 
 struct Factory {
-    debt_token: String, 
-    stability_pool: String, 
-    liquidation_manager: String, 
-    borrower_operations: String, 
-
+    babel_ownable: BabelOwnable,
+    debt_token: DebtToken,
+    stability_pool: Box<dyn IStabilityPool>,
+    liquidation_manager: Box<dyn ILiquidationManager>,
+    borrower_operations: Box<dyn BorrowerOperations>,
     sorted_troves_impl: String,
     trove_manager_impl: String,
-
-    trove_managers: Vec<String>, 
+    trove_managers: Vec<String>,
 }
 
 impl Factory {
     fn new(
-        debt_token: String,
-        stability_pool: String,
-        borrower_operations: String,
+        babel_core: AccountId,
+        debt_token: DebtToken,
+        stability_pool: Box<dyn IStabilityPool>,
+        borrower_operations: Box<dyn BorrowerOperations>,
         sorted_troves_impl: String,
         trove_manager_impl: String,
-        liquidation_manager: String,
+        liquidation_manager: Box<dyn ILiquidationManager>,
     ) -> Self {
         Factory {
+            babel_ownable: BabelOwnable::new(babel_core),
             debt_token,
             stability_pool,
             liquidation_manager,
@@ -52,6 +46,10 @@ impl Factory {
         self.trove_managers.push(trove_manager);
 
         let sorted_troves = self.clone_contract(&self.sorted_troves_impl);
+
+        // Assuming the TroveManager and SortedTroves have methods to set up their state
+        let tm = TroveManager::new(); // You would need to modify this according to actual implementation
+        tm.set_addresses(price_feed, sorted_troves, collateral);
 
         // Simulate setting up the new instance
         println!("Deployed new TroveManager and SortedTroves for collateral: {}", collateral);

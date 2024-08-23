@@ -1,4 +1,7 @@
 use std::collections::HashMap;
+use crate::dependencies::delegated_ops::DelegatedOps;
+use crate::dependencies::system_start::SystemStart;
+use crate::interfaces::token_locker::{ITokenLocker, LockData};
 
 const MAX_POINTS: u32 = 10000;
 const MAX_LOCK_WEEKS: u32 = 52;
@@ -20,13 +23,8 @@ struct Vote {
     points: u256,
 }
 
-struct LockData {
-    amount: u256,
-    weeks_to_unlock: u256,
-}
-
 struct IncentiveVoting {
-    token_locker: TokenLocker,
+    token_locker: Box<dyn ITokenLocker>,
     vault: String,
     account_lock_data: HashMap<String, AccountData>,
     receiver_count: u256,
@@ -38,10 +36,12 @@ struct IncentiveVoting {
     total_updated_week: u16,
     total_weekly_weights: Vec<u64>,
     total_weekly_unlocks: Vec<u32>,
+    delegated_ops: DelegatedOps,
+    system_start: SystemStart,
 }
 
 impl IncentiveVoting {
-    pub fn new(token_locker: TokenLocker, vault: String) -> Self {
+    pub fn new(token_locker: Box<dyn ITokenLocker>, vault: String, delegated_ops: DelegatedOps, system_start: SystemStart) -> Self {
         Self {
             token_locker,
             vault,
@@ -55,12 +55,15 @@ impl IncentiveVoting {
             total_updated_week: 0,
             total_weekly_weights: vec![0; 65535],
             total_weekly_unlocks: vec![0; 65535],
+            delegated_ops,
+            system_start,
         }
     }
 
     pub fn register_account_weight(&mut self, account: String, min_weeks: u64) {
-        let lock_data = self.token_locker.get_account_locks(&account, min_weeks);
-        let current_week = self.get_current_week();
+        self.delegated_ops.ensure_caller_or_delegated(account.clone());
+        let lock_data = self.token_locker.get_account_active_locks(account.clone(), min_weeks).unwrap();
+        let current_week = self.system_start.get_week();
         let mut account_data = self.account_lock_data.entry(account.clone()).or_default();
 
         // Clear existing data
@@ -83,11 +86,11 @@ impl IncentiveVoting {
 
     // Helper function to simulate getting the current week
     fn get_current_week(&self) -> u16 {
-        // This would normally interact with a timekeeping system or block timestamp
-        42 
+        self.system_start.get_week() as u16
     }
 
     pub fn vote(&mut self, account: String, votes: Vec<Vote>, clear_previous: bool) {
+        self.delegated_ops.ensure_caller_or_delegated(account.clone());
         // Implementation similar to Solidity's vote
     }
 
@@ -98,5 +101,3 @@ impl IncentiveVoting {
 struct TokenLocker {
     // Define according to your needs
 }
-
-// Implement methods for TokenLocker and other components

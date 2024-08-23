@@ -1,3 +1,4 @@
+use crate::interfaces::babel_core::BabelCore; // Import the BabelCore trait
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -16,15 +17,17 @@ struct Proposal {
     processed: bool,
 }
 
-struct InterimAdmin {
+struct InterimAdmin<'a> {
+    babel_core: &'a mut dyn BabelCore, // Add a reference to a BabelCore object
     proposals: Vec<Proposal>,
     proposal_payloads: HashMap<usize, Vec<Action>>,
     daily_proposals_count: HashMap<u64, u32>,
 }
 
-impl InterimAdmin {
-    fn new() -> Self {
+impl<'a> InterimAdmin<'a> {
+    fn new(babel_core: &'a mut dyn BabelCore) -> Self {
         InterimAdmin {
+            babel_core,
             proposals: Vec::new(),
             proposal_payloads: HashMap::new(),
             daily_proposals_count: HashMap::new(),
@@ -47,11 +50,18 @@ impl InterimAdmin {
         self.daily_proposals_count.insert(day, current_daily_count + 1);
     }
 
+    // Example of using BabelCore methods
+    fn transfer_ownership_to_admin_voting(&mut self, new_owner: &str) {
+        self.babel_core.commit_transfer_ownership(new_owner);
+    }
+
     // Additional methods like `execute_proposal`, `cancel_proposal`, etc.
 }
 
 fn main() {
-    let mut admin = InterimAdmin::new();
+    // Example usage
+    let mut babel_core = /* Assume BabelCore implementation here */;
+    let mut admin = InterimAdmin::new(&mut babel_core);
     
     admin.create_new_proposal(vec![Action {
         target: "SomeAddress".to_string(),

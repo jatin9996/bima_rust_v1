@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::dependecies::babel_ownable::{BabelOwnable, IBabelCore}; // Import the BabelOwnable and IBabelCore
 
 struct Token {
     balances: HashMap<Address, u128>,
@@ -32,35 +33,31 @@ impl Token {
 type Address = String; // Simplified address type
 
 struct FeeReceiver {
-    owner: Address,
+    babel_ownable: BabelOwnable, // Use BabelOwnable for ownership management
     tokens: HashMap<String, Token>, // Token identifier mapped to Token struct
 }
 
 impl FeeReceiver {
     fn new(owner: Address) -> Self {
         FeeReceiver {
-            owner,
+            babel_ownable: BabelOwnable::new(owner), // Initialize BabelOwnable with the owner
             tokens: HashMap::new(),
         }
     }
 
     fn transfer_token(&mut self, token_id: &str, receiver: Address, amount: u128) -> Result<(), String> {
-        if self.owner != "owner_address_here" { // Replace with actual owner address
-            return Err("Unauthorized".to_string());
-        }
+        self.babel_ownable.only_owner(); // Use only_owner to check ownership
         match self.tokens.get_mut(token_id) {
-            Some(token) => token.transfer("owner_address_here".to_string(), receiver, amount), // Replace with actual owner address
+            Some(token) => token.transfer(self.babel_ownable.owner(), receiver, amount),
             None => Err("Token not found".to_string()),
         }
     }
 
     fn set_token_approval(&mut self, token_id: &str, spender: Address, amount: u128) -> Result<(), String> {
-        if self.owner != "owner_address_here" { // Replace with actual owner address
-            return Err("Unauthorized".to_string());
-        }
+        self.babel_ownable.only_owner(); // Use only_owner to check ownership
         match self.tokens.get_mut(token_id) {
             Some(token) => {
-                token.approve("owner_address_here".to_string(), spender, amount); // Replace with actual owner address
+                token.approve(self.babel_ownable.owner(), spender, amount);
                 Ok(())
             },
             None => Err("Token not found".to_string()),

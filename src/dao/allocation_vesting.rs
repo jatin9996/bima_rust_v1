@@ -1,4 +1,4 @@
-// Define errors that might occur in the contract
+// Define errors that might occur in the contract     
 #[derive(Debug)]
 enum ContractError {
     NothingToClaim,
@@ -16,6 +16,11 @@ enum ContractError {
     VestingAlreadyStarted,
     IncompatibleVestingPeriod,
 }
+
+// Import necessary traits and structs
+use crate::interfaces::token_locker::ITokenLocker;
+use crate::dependecies::delegated_ops::DelegatedOps;
+use crate::dependecies::babel_ownable::{BabelOwnable, IBabelCore};
 
 // Structs to mirror Solidity's structs
 #[derive(Debug, Clone)]
@@ -39,6 +44,7 @@ struct AllocationVesting {
     max_total_preclaim_pct: u32,
     total_allocation: u128,
     vesting_start: Option<u64>, // Using Option to represent uninitialized state
+    babel_ownable: BabelOwnable,
 }
 
 impl AllocationVesting {
@@ -56,6 +62,7 @@ impl AllocationVesting {
             max_total_preclaim_pct,
             total_allocation,
             vesting_start: None,
+            babel_ownable: BabelOwnable::new(),
         })
     }
 
@@ -68,11 +75,41 @@ impl AllocationVesting {
         Ok(())
     }
 
-    // Additional methods to mirror Solidity functions
+    // Implementing a new method to lock allocations using ITokenLocker
+    fn lock_allocation(&self, account: String, amount: u256, weeks: u256) -> Result<(), String> {
+        // Assuming there's a global TOKEN_LOCKER that implements ITokenLocker
+        TOKEN_LOCKER.lock(account, amount, weeks)
+    }
+}
+
+// Implementing the IBabelCore trait for AllocationVesting
+impl IBabelCore for AllocationVesting {
+    fn owner(&self) -> AccountId {
+        // Assuming BabelOwnable is part of AllocationVesting
+        self.babel_ownable.owner()
+    }
+
+    fn guardian(&self) -> AccountId {
+        // Assuming BabelOwnable is part of AllocationVesting
+        self.babel_ownable.guardian()
+    }
+}
+
+// Additional modifications to integrate DelegatedOps
+impl AllocationVesting {
+    fn set_delegate_approval(&mut self, delegate: AccountId, is_approved: bool) {
+        // Assuming there's a global DELEGATED_OPS that handles delegate approvals
+        DELEGATED_OPS.set_delegate_approval(delegate, is_approved);
+    }
+
+    fn is_approved_delegate(&self, owner: AccountId, caller: AccountId) -> bool {
+        // Assuming there's a global DELEGATED_OPS
+        DELEGATED_OPS.is_approved_delegate(owner, caller)
+    }
 }
 
 fn main() {
-    // Example usage
+    
     let mut contract = AllocationVesting::new(1000, 10).unwrap();
     let allocation_splits = vec![AllocationSplit {
         recipient: "0x123...".to_string(),
