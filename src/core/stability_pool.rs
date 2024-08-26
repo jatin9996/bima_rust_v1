@@ -1,53 +1,67 @@
-use std::collections::HashMap;
-use crate::dependecies::babel_ownable::BabelOwnable;
-use crate::dependecies::system_start::SystemStart;
-use crate::dependecies::babel_math::BabelMath;
-use crate::interfaces::debt_token::DebtToken;
-use crate::interfaces::vault::IBabelVault;
-use num_bigint::BigUint;
+#![cfg_attr(not(feature = "std"), no_std)]
 
-pub struct StabilityPool {
-    deposits: HashMap<String, u64>, // User deposits mapped by user ID
-    total_stablecoins: u64,         // Total stablecoins held in the pool
-    owner: BabelOwnable,            // Ownership management
-    system_start: SystemStart,      // System start time for time-based calculations
-    debt_token: DebtToken,          // Debt token management
-}
+use ink_lang as ink;
+use ink_storage::{
+    collections::HashMap as StorageHashMap,
+    traits::SpreadAllocate,
+};
 
-impl StabilityPool {
-    pub fn new(owner_account: AccountId, start_time: u64) -> Self {
-        Self {
-            deposits: HashMap::new(),
-            total_stablecoins: 0,
-            owner: BabelOwnable::new(owner_account),
-            system_start: SystemStart::new(owner_account),
-            debt_token: DebtToken::new(),
+#[ink::contract]
+pub mod stability_pool {
+    use super::*;
+
+    #[ink(storage)]
+    #[derive(SpreadAllocate)]
+    pub struct StabilityPool {
+        deposits: StorageHashMap<AccountId, Balance>,
+        total_stablecoins: Balance,
+        owner: AccountId,
+    }
+
+    impl StabilityPool {
+        #[ink(constructor)]
+        pub fn new() -> Self {
+            ink_lang::utils::initialize_contract(|contract: &mut Self| {
+                contract.deposits = StorageHashMap::new();
+                contract.total_stablecoins = 0;
+                contract.owner = Self::env().caller();
+            })
         }
-    }
 
-    pub fn deposit(&mut self, user_id: String, amount: u64) {
-        self.owner.only_owner(); // Ensure only the owner can call this
-        let current_deposit = self.deposits.entry(user_id).or_insert(0);
-        *current_deposit += amount;
-        self.total_stablecoins += amount;
-        self.debt_token.issue(amount); // Issue debt tokens corresponding to the deposit
-    }
+        #[ink(message)]
+        pub fn deposit(&mut self, amount: Balance) {
+            self.only_owner();
+            let caller = self.env().caller();
+            let current_deposit = self.deposits.entry(caller).or_insert(0);
+            *current_deposit += amount;
+            self.total_stablecoins += amount;
+            // Simulate debt token issuance (logic to be implemented)
+        }
 
-    pub fn withdraw(&mut self, user_id: String, amount: u64) -> bool {
-        self.owner.only_owner(); // Ensure only the owner can call this
-        if let Some(current_deposit) = self.deposits.get_mut(&user_id) {
-            if *current_deposit >= amount {
-                *current_deposit -= amount;
-                self.total_stablecoins -= amount;
-                self.debt_token.burn(amount); // Burn debt tokens corresponding to the withdrawal
-                return true;
+        #[ink(message)]
+        pub fn withdraw(&mut self, amount: Balance) -> bool {
+            self.only_owner();
+            let caller = self.env().caller();
+            if let Some(current_deposit) = self.deposits.get_mut(&caller) {
+                if *current_deposit >= amount {
+                    *current_deposit -= amount;
+                    self.total_stablecoins -= amount;
+                    // Simulate debt token burning (logic to be implemented)
+                    return true;
+                }
             }
+            false
         }
-        false
-    }
 
-    // Example of using BabelMath for a calculation
-    pub fn calculate_interest(&self, coll: BigUint, debt: BigUint) -> BigUint {
-        BabelMath::compute_cr(coll, debt, BigUint::from(1u32)) // Simplified example
+        fn only_owner(&self) {
+            assert_eq!(self.owner, self.env().caller(), "Only owner can call this function");
+        }
+
+        // Example of a calculation, needs proper implementation
+        #[ink(message)]
+        pub fn calculate_interest(&self, coll: Balance, debt: Balance) -> Balance {
+            // Placeholder for actual calculation
+            coll + debt // Simplified example
+        }
     }
 }

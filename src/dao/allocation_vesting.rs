@@ -1,120 +1,89 @@
-// Define errors that might occur in the contract     
-#[derive(Debug)]
-enum ContractError {
-    NothingToClaim,
-    CannotLock,
-    WrongMaxTotalPreclaimPct,
-    PreclaimTooLarge,
-    AllocationsMismatch,
-    ZeroTotalAllocation,
-    ZeroAllocation,
-    ZeroNumberOfWeeks,
-    DuplicateAllocation,
-    InsufficientPoints,
-    LockedAllocation,
-    IllegalVestingStart,
-    VestingAlreadyStarted,
-    IncompatibleVestingPeriod,
-}
+#![cfg_attr(not(feature = "std"), no_std)]
 
-// Import necessary traits and structs
-use crate::interfaces::token_locker::ITokenLocker;
-use crate::dependecies::delegated_ops::DelegatedOps;
-use crate::dependecies::babel_ownable::{BabelOwnable, IBabelCore};
+use ink_lang as ink;
 
-// Structs to mirror Solidity's structs
-#[derive(Debug, Clone)]
-struct AllocationSplit {
-    recipient: String, // Using String to represent addresses
-    points: u32,
-    number_of_weeks: u8,
-}
+#[ink::contract]
+mod allocation_vesting {
+    use ink_storage::{
+        collections::HashMap as StorageHashMap,
+        traits::{PackedLayout, SpreadLayout},
+    };
 
-#[derive(Debug, Clone)]
-struct AllocationState {
-    points: u32,
-    number_of_weeks: u8,
-    claimed: u128,
-    preclaimed: u96,
-}
+    #[derive(Debug, Clone, PartialEq, Eq, ink_storage::traits::SpreadLayout, ink_storage::traits::PackedLayout)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink_storage::traits::StorageLayout))]
+    pub struct AllocationSplit {
+        recipient: AccountId,
+        points: u32,
+        number_of_weeks: u8,
+    }
 
-// Main contract struct
-struct AllocationVesting {
-    allocations: HashMap<String, AllocationState>,
-    max_total_preclaim_pct: u32,
-    total_allocation: u128,
-    vesting_start: Option<u64>, // Using Option to represent uninitialized state
-    babel_ownable: BabelOwnable,
-}
+    #[derive(Debug, Clone, PartialEq, Eq, ink_storage::traits::SpreadLayout, ink_storage::traits::PackedLayout)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo, ink_storage::traits::StorageLayout))]
+    pub struct AllocationState {
+        points: u32,
+        number_of_weeks: u8,
+        claimed: Balance,
+        preclaimed: Balance,
+    }
 
-impl AllocationVesting {
-    // Constructor to initialize the contract
-    fn new(total_allocation: u128, max_total_preclaim_pct: u32) -> Result<Self, ContractError> {
-        if total_allocation == 0 {
-            return Err(ContractError::ZeroTotalAllocation);
-        }
-        if max_total_preclaim_pct > 20 {
-            return Err(ContractError::WrongMaxTotalPreclaimPct);
+    #[ink::contract]
+    pub struct AllocationVesting {
+        allocations: StorageHashMap<AccountId, AllocationState>,
+        max_total_preclaim_pct: u32,
+        total_allocation: Balance,
+        vesting_start: Option<Timestamp>,
+        owner: AccountId,
+    }
+
+    impl AllocationVesting {
+        #[ink(constructor)]
+        pub fn new(total_allocation: Balance, max_total_preclaim_pct: u32) -> Self {
+            ink_env::debug_assert!(total_allocation > 0);
+            ink_env::debug_assert!(max_total_preclaim_pct <= 20);
+            Self {
+                allocations: StorageHashMap::new(),
+                max_total_preclaim_pct,
+                total_allocation,
+                vesting_start: None,
+                owner: Self::env().caller(),
+            }
         }
 
-        Ok(Self {
-            allocations: HashMap::new(),
-            max_total_preclaim_pct,
-            total_allocation,
-            vesting_start: None,
-            babel_ownable: BabelOwnable::new(),
-        })
-    }
-
-    // Method to set allocations and start vesting
-    fn set_allocations(&mut self, allocation_splits: Vec<AllocationSplit>, vesting_start: u64) -> Result<(), ContractError> {
-        if self.vesting_start.is_some() {
-            return Err(ContractError::VestingAlreadyStarted);
+        #[ink(message)]
+        pub fn set_allocations(&mut self, allocation_splits: Vec<AllocationSplit>, vesting_start: Timestamp) -> Result<(), ContractError> {
+            if self.vesting_start.is_some() {
+                return Err(ContractError::VestingAlreadyStarted);
+            }
+            self.vesting_start = Some(vesting_start);
+            // Additional logic to check and set allocations
+            Ok(())
         }
-        // Additional logic to check and set allocations
-        Ok(())
+
+        #[ink(message)]
+        pub fn lock_allocation(&self, account: AccountId, amount: Balance, weeks: u32) -> Result<(), ContractError> {
+            // Locking logic using external token locker
+            Ok(())
+        }
     }
 
-    // Implementing a new method to lock allocations using ITokenLocker
-    fn lock_allocation(&self, account: String, amount: u256, weeks: u256) -> Result<(), String> {
-        // Assuming there's a global TOKEN_LOCKER that implements ITokenLocker
-        TOKEN_LOCKER.lock(account, amount, weeks)
-    }
-}
-
-// Implementing the IBabelCore trait for AllocationVesting
-impl IBabelCore for AllocationVesting {
-    fn owner(&self) -> AccountId {
-        // Assuming BabelOwnable is part of AllocationVesting
-        self.babel_ownable.owner()
-    }
-
-    fn guardian(&self) -> AccountId {
-        // Assuming BabelOwnable is part of AllocationVesting
-        self.babel_ownable.guardian()
-    }
-}
-
-// Additional modifications to integrate DelegatedOps
-impl AllocationVesting {
-    fn set_delegate_approval(&mut self, delegate: AccountId, is_approved: bool) {
-        // Assuming there's a global DELEGATED_OPS that handles delegate approvals
-        DELEGATED_OPS.set_delegate_approval(delegate, is_approved);
-    }
-
-    fn is_approved_delegate(&self, owner: AccountId, caller: AccountId) -> bool {
-        // Assuming there's a global DELEGATED_OPS
-        DELEGATED_OPS.is_approved_delegate(owner, caller)
+    #[ink(storage)]
+    #[derive(Debug)]
+    pub enum ContractError {
+        NothingToClaim,
+        CannotLock,
+        WrongMaxTotalPreclaimPct,
+        PreclaimTooLarge,
+        AllocationsMismatch,
+        ZeroTotalAllocation,
+        ZeroAllocation,
+        ZeroNumberOfWeeks,
+        DuplicateAllocation,
+        InsufficientPoints,
+        LockedAllocation,
+        IllegalVestingStart,
+        VestingAlreadyStarted,
+        IncompatibleVestingPeriod,
     }
 }
 
-fn main() {
-    
-    let mut contract = AllocationVesting::new(1000, 10).unwrap();
-    let allocation_splits = vec![AllocationSplit {
-        recipient: "0x123...".to_string(),
-        points: 100,
-        number_of_weeks: 52,
-    }];
-    contract.set_allocations(allocation_splits, 1234567890).unwrap();
-}
+fn main() {}

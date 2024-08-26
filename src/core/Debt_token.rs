@@ -1,76 +1,70 @@
-use std::collections::HashMap;
-use crate::interfaces::babel_core::BabelCore; // Import the BabelCore trait
+#![cfg_attr(not(feature = "std"), no_std)]
 
-type AccountId = String;
-type Balance = u128;
+use ink_lang as ink;
 
-#[derive(Debug)]
-struct DebtToken<'a, T: BabelCore> {
-    name: String,
-    symbol: String,
-    total_supply: Balance,
-    balances: HashMap<AccountId, Balance>,
-    allowances: HashMap<(AccountId, AccountId), Balance>,
-    babel_core: &'a T, // Reference to an implementation of BabelCore
-}
+#[ink::contract]
+mod debt_token {
+    use ink_storage::{
+        collections::HashMap as StorageHashMap,
+        traits::{PackedLayout, SpreadLayout},
+    };
 
-impl<'a, T: BabelCore> DebtToken<'a, T> {
-    fn new(name: String, symbol: String, babel_core: &'a T) -> Self {
-        Self {
-            name,
-            symbol,
-            total_supply: 0,
-            balances: HashMap::new(),
-            allowances: HashMap::new(),
-            babel_core,
+    #[ink(storage)]
+    pub struct DebtToken {
+        name: ink_prelude::string::String,
+        symbol: ink_prelude::string::String,
+        total_supply: Balance,
+        balances: StorageHashMap<AccountId, Balance>,
+        allowances: StorageHashMap<(AccountId, AccountId), Balance>,
+    }
+
+    pub type AccountId = ink_env::AccountId;
+    pub type Balance = u128;
+
+    impl DebtToken {
+        #[ink(constructor)]
+        pub fn new(name: ink_prelude::string::String, symbol: ink_prelude::string::String) -> Self {
+            Self {
+                name,
+                symbol,
+                total_supply: 0,
+                balances: StorageHashMap::new(),
+                allowances: StorageHashMap::new(),
+            }
+        }
+
+        #[ink(message)]
+        pub fn mint(&mut self, account: AccountId, amount: Balance) {
+            let balance = self.balances.entry(account).or_insert(0);
+            *balance += amount;
+            self.total_supply += amount;
+        }
+
+        #[ink(message)]
+        pub fn burn(&mut self, account: AccountId, amount: Balance) {
+            let balance = self.balances.entry(account).or_default();
+            if *balance < amount {
+                ink_env::panic("Insufficient balance");
+            }
+            *balance -= amount;
+            self.total_supply -= amount;
+        }
+
+        #[ink(message)]
+        pub fn approve(&mut self, owner: AccountId, spender: AccountId, amount: Balance) {
+            self.allowances.insert((owner, spender), amount);
+        }
+
+        #[ink(message)]
+        pub fn transfer(&mut self, from: AccountId, to: AccountId, amount: Balance) {
+            let from_balance = self.balances.entry(from).or_default();
+            if *from_balance < amount {
+                ink_env::panic("Insufficient balance");
+            }
+            *from_balance -= amount;
+
+            let to_balance = self.balances.entry(to).or_insert(0);
+            *to_balance += amount;
         }
     }
-
-    fn mint(&mut self, account: AccountId, amount: Balance) {
-        let balance = self.balances.entry(account.clone()).or_insert(0);
-        *balance += amount;
-        self.total_supply += amount;
-        println!("Minted {} tokens for {}", amount, account);
-        self.babel_core.emit_fee_receiver_set("FeeReceiver"); // Example of using BabelCore trait
-    }
-
-    fn burn(&mut self, account: AccountId, amount: Balance) {
-        let balance = self.balances.entry(account.clone()).or_default();
-        if *balance < amount {
-            panic!("Insufficient balance");
-        }
-        *balance -= amount;
-        self.total_supply -= amount;
-        println!("Burned {} tokens from {}", amount, account);
-        self.babel_core.emit_guardian_set("Guardian"); // Example of using BabelCore trait
-    }
-
-    fn approve(&mut self, owner: AccountId, spender: AccountId, amount: Balance) {
-        self.allowances.insert((owner, spender), amount);
-        println!("Approval granted to spend {} tokens", amount);
-    }
-
-    fn transfer(&mut self, from: AccountId, to: AccountId, amount: Balance) {
-        let from_balance = self.balances.entry(from.clone()).or_default();
-        if *from_balance < amount {
-            panic!("Insufficient balance");
-        }
-        *from_balance -= amount;
-
-        let to_balance = self.balances.entry(to.clone()).or_insert(0);
-        *to_balance += amount;
-
-        println!("Transferred {} tokens from {} to {}", amount, from, to);
-        self.babel_core.emit_new_owner_accepted(&from, &to); // Example of using BabelCore trait
-    }
-}
-
-fn main() {
-    // Assuming there's an implementation of BabelCore available
-    let babel_core = /* get your BabelCore implementation here */;
-    let mut token = DebtToken::new("DebtToken".to_string(), "DT".to_string(), &babel_core);
-    token.mint("Alice".to_string(), 1000);
-    token.burn("Alice".to_string(), 200);
-    token.approve("Alice".to_string(), "Bob".to_string(), 300);
-    token.transfer("Alice".to_string(), "Bob".to_string(), 300);
 }

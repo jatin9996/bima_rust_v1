@@ -4,9 +4,6 @@ pub fn process_instructions(instructions: Vec<Instruction>) -> Result<(), u64> {
     let mut vault = VaultState::new();
     for instruction in instructions {
         match instruction {
-            Instruction::DepositBitcoinUTXO { utxo_id, value } => {
-                vault.deposit_bitcoin_utxo(utxo_id, value);
-            },
             Instruction::IssueStablecoin { btc_amount } => {
                 vault.issue_stablecoin(btc_amount);
             },

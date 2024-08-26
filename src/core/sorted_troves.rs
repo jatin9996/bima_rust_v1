@@ -1,40 +1,43 @@
-use crate::interfaces::trove_manager::{TroveManager, Trove}; // Import TroveManager and Trove
-use std::collections::HashMap;
+#![cfg_attr(not(feature = "std"), no_std)]
 
-struct Node {
-    exists: bool,
-    next_id: Option<String>, // Using String to represent addresses
-    prev_id: Option<String>,
-}
+use ink_lang as ink;
 
-struct SortedTroves<'a> { // Use a lifetime parameter
-    trove_manager: &'a TroveManager, // Reference to TroveManager
-    data: Data,
-}
+#[ink::contract]
+mod sorted_troves {
+    use ink_storage::{
+        collections::HashMap as StorageMap,
+        traits::{PackedLayout, SpreadLayout},
+    };
 
-struct Data {
-    head: Option<String>,
-    tail: Option<String>,
-    size: usize,
-    nodes: HashMap<String, Node>,
-}
+    #[derive(Debug, Clone, PartialEq, Eq, PackedLayout, SpreadLayout)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct Node {
+        exists: bool,
+        next_id: Option<AccountId>,
+        prev_id: Option<AccountId>,
+    }
 
-impl<'a> SortedTroves<'a> {
-    pub fn new(trove_manager: &'a TroveManager) -> Self {
-        SortedTroves {
-            trove_manager,
-            data: Data {
+    #[ink(storage)]
+    pub struct SortedTroves {
+        head: Option<AccountId>,
+        tail: Option<AccountId>,
+        size: u32,
+        nodes: StorageMap<AccountId, Node>,
+    }
+
+    impl SortedTroves {
+        #[ink(constructor)]
+        pub fn new() -> Self {
+            Self {
                 head: None,
                 tail: None,
                 size: 0,
-                nodes: HashMap::new(),
-            },
+                nodes: StorageMap::new(),
+            }
         }
-    }
 
-    pub fn insert(&mut self, id: String, prev_id: Option<String>, next_id: Option<String>) {
-        // Example usage of TroveManager
-        if self.trove_manager.troves.contains_key(&id) {
+        #[ink(message)]
+        pub fn insert(&mut self, id: AccountId, prev_id: Option<AccountId>, next_id: Option<AccountId>) {
             let node = Node {
                 exists: true,
                 next_id: next_id.clone(),
@@ -42,70 +45,62 @@ impl<'a> SortedTroves<'a> {
             };
 
             if let Some(prev_id) = prev_id {
-                if let Some(prev_node) = self.data.nodes.get_mut(&prev_id) {
-                    prev_node.next_id = Some(id.clone());
+                if let Some(prev_node) = self.nodes.get_mut(&prev_id) {
+                    prev_node.next_id = Some(id);
                 }
             } else {
-                self.data.head = Some(id.clone());
+                self.head = Some(id);
             }
 
             if let Some(next_id) = next_id {
-                if let Some(next_node) = self.data.nodes.get_mut(&next_id) {
-                    next_node.prev_id = Some(id.clone());
+                if let Some(next_node) = self.nodes.get_mut(&next_id) {
+                    next_node.prev_id = Some(id);
                 }
             } else {
-                self.data.tail = Some(id.clone());
+                self.tail = Some(id);
             }
 
-            self.data.nodes.insert(id, node);
-            self.data.size += 1;
+            self.nodes.insert(id, node);
+            self.size += 1;
+        }
+
+        #[ink(message)]
+        pub fn remove(&mut self, id: AccountId) {
+            if let Some(node) = self.nodes.take(&id) {
+                if let Some(prev_id) = node.prev_id {
+                    if let Some(prev_node) = self.nodes.get_mut(&prev_id) {
+                        prev_node.next_id = node.next_id;
+                    }
+                } else {
+                    self.head = node.next_id;
+                }
+
+                if let Some(next_id) = node.next_id {
+                    if let Some(next_node) = self.nodes.get_mut(&next_id) {
+                        next_node.prev_id = node.prev_id;
+                    }
+                } else {
+                    self.tail = node.prev_id;
+                }
+
+                self.size -= 1;
+            }
+        }
+
+        #[ink(message)]
+        pub fn is_empty(&self) -> bool {
+            self.size == 0
+        }
+
+        #[ink(message)]
+        pub fn contains(&self, id: AccountId) -> bool {
+            self.nodes.contains_key(&id)
+        }
+
+        #[ink(message)]
+        pub fn re_insert(&mut self, id: AccountId, new_prev_id: Option<AccountId>, new_next_id: Option<AccountId>) {
+            self.remove(id);
+            self.insert(id, new_prev_id, new_next_id);
         }
     }
-
-    pub fn remove(&mut self, id: String) {
-        if let Some(node) = self.data.nodes.remove(&id) {
-            if let Some(prev_id) = node.prev_id {
-                if let Some(prev_node) = self.data.nodes.get_mut(&prev_id) {
-                    prev_node.next_id = node.next_id.clone();
-                }
-            } else {
-                self.data.head = node.next_id.clone();
-            }
-
-            if let Some(next_id) = node.next_id {
-                if let Some(next_node) = self.data.nodes.get_mut(&next_id) {
-                    next_node.prev_id = node.prev_id.clone();
-                }
-            } else {
-                self.data.tail = node.prev_id.clone();
-            }
-
-            self.data.size -= 1;
-        }
-    }
-
-    // Checks if the list is empty
-    pub fn is_empty(&self) -> bool {
-        self.data.size == 0
-    }
-
-    // Checks if a trove with the given id exists
-    pub fn contains(&self, id: &String) -> bool {
-        self.data.nodes.contains_key(id)
-    }
-
-    // Re-inserts a trove with updated data, typically used after modifications that may affect sorting
-    pub fn re_insert(&mut self, id: String, new_prev_id: Option<String>, new_next_id: Option<String>) {
-        // Remove the node and then insert it again with updated links
-        self.remove(id.clone());
-        self.insert(id, new_prev_id, new_next_id);
-    }
-}
-
-fn main() {
-    let trove_manager = TroveManager::new();
-    let mut troves = SortedTroves::new(&trove_manager);
-    troves.insert("node1".to_string(), None, None);
-    troves.insert("node2".to_string(), Some("node1".to_string()), None);
-    troves.remove("node1".to_string());
 }

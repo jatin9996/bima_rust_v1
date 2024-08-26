@@ -23,6 +23,6 @@ std = [
 ]
 
 no_std = [
-    "ink_lang/no_std",
+
     "ink_storage/no_std",
 ]

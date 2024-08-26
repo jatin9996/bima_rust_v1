@@ -1,75 +1,61 @@
-use std::collections::HashMap;
-use crate::interfaces::stability_pool::IStabilityPool;
-use crate::interfaces::sorted_troves::ISortedTroves;
-use crate::interfaces::borrower_operations::BorrowerOperations;
-use crate::interfaces::trove_manager::TroveManager;
-use crate::dependecies::babel_base::BabelBase;
-use crate::dependecies::babel_math::BabelMath;
+#![cfg_attr(not(feature = "std"), no_std)]
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-struct AccountId(String);  // Simplified representation of an account ID
+use ink_lang as ink;
 
-struct LiquidationManager {
-    stability_pool: Box<dyn IStabilityPool>,
-    sorted_troves: Box<dyn ISortedTroves>,
-    borrower_operations: Box<dyn BorrowerOperations>,
-    factory: AccountId,
-    enabled_trove_managers: HashMap<AccountId, bool>,
-}
+#[ink::contract]
+mod liquidation_manager {
+    use ink_storage::{
+        collections::HashMap as StorageHashMap,
+        traits::SpreadAllocate,
+    };
 
-struct Liquidation {
-    borrower: AccountId,
-    liquidated_debt: f64,  // Assuming debt and collateral are represented as f64 for simplicity
-    liquidated_coll: f64,
-}
-
-impl LiquidationManager {
-    fn new(stability_pool: Box<dyn IStabilityPool>, sorted_troves: Box<dyn ISortedTroves>, borrower_operations: Box<dyn BorrowerOperations>, factory: AccountId) -> Self {
-        Self {
-            stability_pool,
-            sorted_troves,
-            borrower_operations,
-            factory,
-            enabled_trove_managers: HashMap::new(),
-        }
+    #[ink(storage)]
+    #[derive(SpreadAllocate)]
+    pub struct LiquidationManager {
+        stability_pool: AccountId,
+        sorted_troves: AccountId,
+        borrower_operations: AccountId,
+        factory: AccountId,
+        enabled_trove_managers: StorageHashMap<AccountId, bool>,
     }
 
-    fn enable_trove_manager(&mut self, trove_manager: AccountId) {
-        // Simulating only the factory can enable a trove manager
-        // This would be where you check the caller in a real smart contract
-        self.enabled_trove_managers.insert(trove_manager, true);
+    #[derive(Debug, Clone, PartialEq, Eq, scale::Encode, scale::Decode)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct Liquidation {
+        borrower: AccountId,
+        liquidated_debt: Balance,
+        liquidated_coll: Balance,
     }
 
-    fn liquidate(&mut self, trove_manager: AccountId, borrower: AccountId) -> Option<Liquidation> {
-        if !self.enabled_trove_managers.get(&trove_manager).unwrap_or(&false) {
-            return None;  // Trove manager not approved, no liquidation occurs
+    impl LiquidationManager {
+        #[ink(constructor)]
+        pub fn new(factory: AccountId) -> Self {
+            ink_lang::utils::initialize_contract(|contract: &mut Self| {
+                contract.factory = factory;
+                contract.enabled_trove_managers = StorageHashMap::new();
+            })
         }
 
-        // Simulate liquidation logic
-        let liquidation = Liquidation {
-            borrower,
-            liquidated_debt: 1000.0,  // Example values
-            liquidated_coll: 500.0,
-        };
+        #[ink(message)]
+        pub fn enable_trove_manager(&mut self, trove_manager: AccountId) {
+            assert_eq!(self.env().caller(), self.factory, "Only factory can enable a trove manager");
+            self.enabled_trove_managers.insert(trove_manager, true);
+        }
 
-        Some(liquidation)
-    }
-}
+        #[ink(message)]
+        pub fn liquidate(&mut self, trove_manager: AccountId, borrower: AccountId) -> Option<Liquidation> {
+            let is_enabled = *self.enabled_trove_managers.get(&trove_manager).unwrap_or(&false);
+            if !is_enabled {
+                return None;
+            }
 
-fn main() {
-    let mut manager = LiquidationManager::new(
-        AccountId("stability_pool".to_string()),
-        AccountId("sorted_troves".to_string()),
-        AccountId("borrower_operations".to_string()),
-        AccountId("factory".to_string()),
-    );
+            let liquidation = Liquidation {
+                borrower,
+                liquidated_debt: 1000,  // Example values
+                liquidated_coll: 500,
+            };
 
-    let trove_manager = AccountId("trove_manager_1".to_string());
-    manager.enable_trove_manager(trove_manager.clone());
-
-    if let Some(liquidation) = manager.liquidate(trove_manager, AccountId("borrower_1".to_string())) {
-        println!("Liquidation occurred: {:?}", liquidation);
-    } else {
-        println!("Liquidation failed: Trove manager not approved or other error");
+            Some(liquidation)
+        }
     }
 }

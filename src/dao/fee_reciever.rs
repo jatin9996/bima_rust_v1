@@ -1,66 +1,81 @@
-use std::collections::HashMap;
-use crate::dependecies::babel_ownable::{BabelOwnable, IBabelCore}; // Import the BabelOwnable and IBabelCore
+#![cfg_attr(not(feature = "std"), no_std)]
 
-struct Token {
-    balances: HashMap<Address, u128>,
-    allowances: HashMap<(Address, Address), u128>,
-}
+use ink_lang as ink;
+use ink_storage::{
+    collections::HashMap as StorageMap,
+    traits::{PackedLayout, SpreadLayout},
+};
 
-impl Token {
-    fn new() -> Self {
-        Token {
-            balances: HashMap::new(),
-            allowances: HashMap::new(),
+#[ink::contract]
+mod fee_receiver {
+    use super::*;
+
+    #[ink(storage)]
+    pub struct FeeReceiver {
+        owner: AccountId,
+        tokens: StorageMap<String, Token>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, SpreadLayout, PackedLayout)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct Token {
+        balances: StorageMap<AccountId, Balance>,
+        allowances: StorageMap<(AccountId, AccountId), Balance>,
+    }
+
+    impl Token {
+        pub fn new() -> Self {
+            Self {
+                balances: StorageMap::new(),
+                allowances: StorageMap::new(),
+            }
+        }
+
+        pub fn transfer(&mut self, from: AccountId, to: AccountId, amount: Balance) -> Result<(), ink_env::Error> {
+            let from_balance = self.balances.get(&from).copied().unwrap_or(0);
+            if from_balance < amount {
+                return Err(ink_env::Error::new(ink_env::ErrorCode::Custom(1)));
+            }
+            self.balances.insert(from, from_balance - amount);
+            let to_balance = self.balances.get(&to).copied().unwrap_or(0);
+            self.balances.insert(to, to_balance + amount);
+            Ok(())
+        }
+
+        pub fn approve(&mut self, owner: AccountId, spender: AccountId, amount: Balance) {
+            self.allowances.insert((owner, spender), amount);
         }
     }
 
-    fn transfer(&mut self, from: Address, to: Address, amount: u128) -> Result<(), String> {
-        let balance = self.balances.get(&from).cloned().unwrap_or(0);
-        if balance < amount {
-            return Err("Insufficient balance".to_string());
+    impl FeeReceiver {
+        #[ink(constructor)]
+        pub fn new(owner: AccountId) -> Self {
+            Self {
+                owner,
+                tokens: StorageMap::new(),
+            }
         }
-        self.balances.insert(from, balance - amount);
-        let recipient_balance = self.balances.get(&to).cloned().unwrap_or(0);
-        self.balances.insert(to, recipient_balance + amount);
-        Ok(())
-    }
 
-    fn approve(&mut self, owner: Address, spender: Address, amount: u128) {
-        self.allowances.insert((owner, spender), amount);
-    }
-}
-
-type Address = String; // Simplified address type
-
-struct FeeReceiver {
-    babel_ownable: BabelOwnable, // Use BabelOwnable for ownership management
-    tokens: HashMap<String, Token>, // Token identifier mapped to Token struct
-}
-
-impl FeeReceiver {
-    fn new(owner: Address) -> Self {
-        FeeReceiver {
-            babel_ownable: BabelOwnable::new(owner), // Initialize BabelOwnable with the owner
-            tokens: HashMap::new(),
+        #[ink(message)]
+        pub fn transfer_token(&mut self, token_id: String, receiver: AccountId, amount: Balance) -> Result<(), ink_env::Error> {
+            self.only_owner()?;
+            let token = self.tokens.get_mut(&token_id).ok_or(ink_env::Error::new(ink_env::ErrorCode::Custom(2)))?;
+            token.transfer(self.owner, receiver, amount)
         }
-    }
 
-    fn transfer_token(&mut self, token_id: &str, receiver: Address, amount: u128) -> Result<(), String> {
-        self.babel_ownable.only_owner(); // Use only_owner to check ownership
-        match self.tokens.get_mut(token_id) {
-            Some(token) => token.transfer(self.babel_ownable.owner(), receiver, amount),
-            None => Err("Token not found".to_string()),
+        #[ink(message)]
+        pub fn set_token_approval(&mut self, token_id: String, spender: AccountId, amount: Balance) -> Result<(), ink_env::Error> {
+            self.only_owner()?;
+            let token = self.tokens.get_mut(&token_id).ok_or(ink_env::Error::new(ink_env::ErrorCode::Custom(2)))?;
+            token.approve(self.owner, spender, amount);
+            Ok(())
         }
-    }
 
-    fn set_token_approval(&mut self, token_id: &str, spender: Address, amount: u128) -> Result<(), String> {
-        self.babel_ownable.only_owner(); // Use only_owner to check ownership
-        match self.tokens.get_mut(token_id) {
-            Some(token) => {
-                token.approve(self.babel_ownable.owner(), spender, amount);
-                Ok(())
-            },
-            None => Err("Token not found".to_string()),
+        fn only_owner(&self) -> Result<(), ink_env::Error> {
+            if self.env().caller() != self.owner {
+                return Err(ink_env::Error::new(ink_env::ErrorCode::Custom(3)));
+            }
+            Ok(())
         }
     }
 }
