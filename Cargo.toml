@@ -12,17 +12,11 @@ ink_lang = { version = "3.0", default-features = false }
 ink_env = { version = "4.0.0", default-features = false }
 num-bigint = "0.4.0"
 num-traits = "0.2.14"
-ink_storage = "3.0.0"
+ink_storage = "3.4.0"  # Removed features = ["no_std"]
+ink_engine = "3.4.0"
+secp256k1 = "0.28.2"
 
 
 [features]
-default = ["std"]
-std = [
-    "ink_lang/std",
-    "ink_storage/std",
-]
+std = ["ink_lang/std", "ink_storage/std"]
 
-no_std = [
-
-    "ink_storage/no_std",
-]

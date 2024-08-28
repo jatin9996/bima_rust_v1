@@ -1,21 +1,23 @@
 #[macro_export]
 macro_rules! entrypoint {
-    ($handler:path) => {
-        use crate::instruction::Instruction; // Adjust the path as necessary
-
+    ($process_instruction:ident) => {
+        /// # Safety
         #[no_mangle]
-        pub extern "C" fn entrypoint(input: *const u8, length: usize) -> u64 {
-            let data = unsafe { std::slice::from_raw_parts(input, length) };
-            let instructions: Result<Vec<Instruction>, _> = borsh::BorshDeserialize::deserialize(&mut data.as_ref());
-            match instructions {
-                Ok(instructions) => {
-                    match $handler(instructions) {
-                        Ok(_) => 0, // Success
-                        Err(e) => e as u64, // Error code
-                    }
-                },
-                Err(_) => 1, // Deserialization failed
+        pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
+            use std::collections::HashMap;
+            let (program_id, utxos, instruction_data) =
+                unsafe { $crate::entrypoint::deserialize(input) };
+            match $process_instruction(&program_id, &utxos, &instruction_data) {
+                Ok(()) => {
+                    return 0;
+                }
+                Err(e) => {
+                    $crate::msg!("program return an error {:?}", e);
+                    return 1;
+                }
             }
         }
+        $crate::custom_heap_default!();
+        $crate::custom_panic_default!();
     };
 }
