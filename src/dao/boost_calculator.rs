@@ -31,8 +31,10 @@ mod boost_calculator {
 
         #[ink(message)]
         pub fn get_week() -> u32 {
-            // Placeholder for actual week calculation logic
-            0 // This should be replaced with actual logic to fetch the current week
+            let start_date = 1_600_000_000; // start date in UNIX timestamp (seconds)
+            let current_time = ink_env::block_timestamp() / 1_000_000_000; // Convert nanoseconds to seconds
+            let seconds_per_week = 60 * 60 * 24 * 7;
+            ((current_time - start_date) / seconds_per_week) as u32
         }
 
         #[ink(message)]
@@ -51,19 +53,24 @@ mod boost_calculator {
         }
 
         fn get_account_weight(&self, account: AccountId, week: u32) -> Option<u64> {
-            // Placeholder for actual weight fetching logic
-            Some(0) // This should be replaced with actual logic to fetch the weight
+            self.account_weekly_lock_pct.get(&(account, week)).copied()
         }
 
         fn get_total_weight(&self, week: u32) -> Option<u64> {
-            // Placeholder for actual weight fetching logic
-            Some(1) // This should be replaced with actual logic to fetch the total weight
+            self.total_weekly_weights.get(&week).copied()
         }
 
         fn calculate_adjusted_amount(&self, amount: u64, previous_amount: u64, total_weekly_emissions: u64, pct: u64) -> u64 {
-            // Implement the logic to calculate the adjusted amount based on the boost
-            // Placeholder logic
-            amount * pct / 1_000_000_000
+            // Calculate the base amount with the current boost percentage
+            let base_amount = amount * pct / 1_000_000_000;
+
+            // Adjust the base amount based on the ratio of previous amount to total emissions
+            if total_weekly_emissions > 0 {
+                let emission_factor = previous_amount * 1_000_000_000 / total_weekly_emissions;
+                base_amount * emission_factor / 1_000_000_000
+            } else {
+                base_amount // If no emissions, return the base amount
+            }
         }
     }
 }

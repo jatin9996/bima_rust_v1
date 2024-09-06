@@ -57,11 +57,11 @@ pub mod stability_pool {
             assert_eq!(self.owner, self.env().caller(), "Only owner can call this function");
         }
 
-        // Example of a calculation, needs proper implementation
         #[ink(message)]
         pub fn calculate_interest(&self, coll: Balance, debt: Balance) -> Balance {
-            // Placeholder for actual calculation
-            coll + debt // Simplified example
+            let interest_rate: Balance = 5; // Interest rate of 5%
+            let rate_decimal: Balance = interest_rate / 100; // Convert to decimal
+            coll * rate_decimal * debt // Calculate simple interest
         }
     }
 }

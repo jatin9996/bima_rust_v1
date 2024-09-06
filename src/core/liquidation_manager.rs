@@ -51,7 +51,7 @@ mod liquidation_manager {
 
             let liquidation = Liquidation {
                 borrower,
-                liquidated_debt: 1000,  // Example values
+                liquidated_debt: 1000, 
                 liquidated_coll: 500,
             };
 

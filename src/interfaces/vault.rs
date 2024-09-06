@@ -101,6 +101,6 @@ pub trait IBabelVault {
     fn weekly_emissions(&self, id: u256) -> Result<u128, String>;
 }
 
-// Define u256 as an example
+// Define u256 as an 
 // In a real application, you'd need to use a specific library for handling large integers or define your own
 pub type u256 = [u8; 32];

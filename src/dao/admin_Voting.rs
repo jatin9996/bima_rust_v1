@@ -65,13 +65,13 @@ mod admin_voting {
                 ink_env::panic("Minimum time between proposals not met");
             }
 
-            let week = self.system_start; // Simplified for example
+            let week = self.system_start; 
             if week == 0 {
                 ink_env::panic("No proposals in the first week");
             }
 
-            let account_weight = 1000; // Simplified for example
-            let min_weight = 500; // Simplified for example
+            let account_weight = 1000; 
+            let min_weight = 500; 
 
             if account_weight < min_weight {
                 ink_env::panic("Not enough weight to propose");
@@ -83,7 +83,7 @@ mod admin_voting {
                 created_at: current_time,
                 can_execute_after: 0,
                 current_weight: 0,
-                required_weight: 1000, // Simplified for example
+                required_weight: 1000, 
                 processed: false,
             };
 

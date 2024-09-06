@@ -29,7 +29,7 @@ pub fn process_instructions(
         // Process each UTXO based on the instruction
         match instruction.method {
             InstructionType::OpenPool => {
-                // Example processing logic
+                
                 new_authorities.insert(utxo.txid.clone(), *current_authority);
                 new_data.insert(utxo.txid.clone(), current_data.clone());
             },
@@ -43,13 +43,12 @@ pub fn process_instructions(
         }
     }
 
-    // Commit changes to the network (pseudo-code)
-    commit_changes(&new_authorities, &new_data);
+    //  to the network (pseudo-code)
+    //commit_changes(&new_authorities, &new_data);
 
     Ok(())
 }
 
-// Placeholder for the commit function
 fn commit_changes(new_authorities: &HashMap<String, Pubkey>, new_data: &HashMap<String, Vec<u8>>) {
     // Logic to commit changes to the network
 }

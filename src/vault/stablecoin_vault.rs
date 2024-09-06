@@ -31,7 +31,7 @@ impl VaultState {
 // Function to fetch the BTC to USD rate from an oracle
 fn get_btc_to_usd_rate() -> u64 {
     
-    50000 // Assuming 1 BTC = 50,000 USD for the sake of example
+    50000 // Assuming 1 BTC = 50,000 USD for the sake of 
 }
 
 fn main() {

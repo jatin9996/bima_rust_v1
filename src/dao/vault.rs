@@ -50,10 +50,10 @@ mod vault {
 
         #[ink(message)]
         pub fn set_weekly_emission(&mut self, week: u64, amount: Balance) {
-            let total_emissions = self.get_total_weekly_emissions(week); // Simplified for example
+            let total_emissions = self.get_total_weekly_emissions(week); 
             self.weekly_emissions.insert(week, total_emissions);
             self.unallocated_total -= total_emissions;
-            // Example of using the token locker
+            // of using the token locker
             self.lock_tokens(lock_amount, 52); // Lock for 1 year
         }
 

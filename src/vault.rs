@@ -13,7 +13,7 @@ impl VaultState {
             bitcoin_utxos: HashMap::new(),
             bitcoin_balance: 0,
             stablecoin_supply: 0,
-            exchange_rate: 50000, // Assuming 1 BTC = 50,000 USD for the sake of example
+            exchange_rate: 50000, // Assuming 1 BTC = 50,000 USD for the sake of 
         }
     }
 

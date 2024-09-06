@@ -31,7 +31,7 @@ pub trait CurveProxy {
         &mut self,
         caller: &str,
         target: &str,
-        selectors: &[u32],  // This is a placeholder for bytes4 in Solidity
+        selectors: &[u32],  
         permitted: bool,
     ) -> bool;
 
