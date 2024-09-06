@@ -1,7 +1,6 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+ #![cfg_attr(not(feature = "std"), no_std)]
 
 use ink_lang as ink;
-
 #[ink::contract]
 mod borrower_operations {
     use super::*;
