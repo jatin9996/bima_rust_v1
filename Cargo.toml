@@ -7,14 +7,15 @@ edition = "2021"
 borsh = "1.5.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-risc0-zkvm = "1.0.5" 
+risc0-zkp = { git = "https://github.com/risc0/risc0.git" } 
+risc0-zkvm = { git = "https://github.com/risc0/risc0.git" }
 ink_lang = { version = "3.0", default-features = false }
-ink_env = { version = "4.0.0", default-features = false }
+ink_env = { version = "5.0.0", default-features = false }
 num-bigint = "0.4.0"
 num-traits = "0.2.14"
-ink_storage = "3.4.0"  # Removed features = ["no_std"]
-ink_engine = "3.4.0"
-secp256k1 = "0.28.2"
+ink_storage = "5.0.0"  # Removed features = ["no_std"]
+ink_engine = "5.0.0"
+secp256k1 = "0.29.1"
 
 
 [features]

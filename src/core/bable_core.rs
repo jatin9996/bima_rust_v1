@@ -1,6 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use ink_lang as ink;
+use crate::utxo::UTXO;
+use ink_storage::collections::HashMap as StorageMap;
+use crate::utxo_module::UtxoContract;
 
 #[ink::contract]
 mod bable_core {
@@ -12,6 +15,7 @@ mod bable_core {
 
     #[ink(storage)]
     pub struct BabelCore {
+        utxos: StorageMap<(Vec<u8>, u32), UTXO>,
         fee_receiver: String,
         price_feed: String,
         owner: String,
@@ -27,6 +31,7 @@ mod bable_core {
         pub fn new(owner: String, guardian: String, price_feed: String, fee_receiver: String) -> Self {
             let start_time = Self::env().block_timestamp() / 1000; // Convert to seconds
             Self {
+                utxos: StorageMap::default(),
                 fee_receiver,
                 price_feed,
                 owner,
@@ -86,6 +91,39 @@ mod bable_core {
         pub fn revoke_transfer_ownership(&mut self) {
             self.pending_owner = None;
             self.ownership_transfer_deadline = None;
+        }
+
+        //  method adjustment for transferring using UTXOs
+        #[ink(message)]
+        pub fn transfer_utxo(&mut self, input_utxos: Vec<(Vec<u8>, u32)>, output_utxos: Vec<UTXO>) {
+            // Validate that all input UTXOs are unspent and collect their total value
+            let mut input_value = 0;
+            for (txid, vout) in input_utxos.iter() {
+                let utxo = self.utxos.get(&(*txid, *vout)).expect("UTXO not found");
+                input_value += utxo.value;
+                // Mark UTXO as spent by removing it
+                self.utxos.take(&(*txid, *vout));
+            }
+
+            // Validate and create new UTXOs
+            let mut output_value = 0;
+            for utxo in output_utxos.iter() {
+                output_value += utxo.value;
+                let txid = utxo.txid.clone(); // Assume txid is generated elsewhere
+                let vout = utxo.vout;
+                self.utxos.insert((txid, vout), utxo.clone());
+            }
+
+            // Ensure no value is created or destroyed
+            if input_value != output_value {
+                panic!("Input and output values do not match");
+            }
+        }
+
+        // Use UTXO methods for transactions
+        pub fn handle_utxo_transaction(&mut self, input_utxos: Vec<(Vec<u8>, u32)>, output_utxos: Vec<UTXO>) {
+            let mut utxo_contract = UtxoContract::new();
+            utxo_contract.transfer_utxo(input_utxos, output_utxos);
         }
     }
 }

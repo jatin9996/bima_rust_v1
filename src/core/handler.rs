@@ -34,10 +34,19 @@ pub fn process_instructions(
                 new_data.insert(utxo.txid.clone(), current_data.clone());
             },
             InstructionType::AddLiquidity => {
-                // Additional logic for AddLiquidity
+                // Assuming the instruction data includes new authority and data for liquidity
+                let new_authority = Pubkey::new_unique(); 
+                let new_liquidity_data = vec![0u8; 10]; //  new data for liquidity
+
+                new_authorities.insert(utxo.txid.clone(), new_authority);
+                new_data.insert(utxo.txid.clone(), new_liquidity_data);
             },
             InstructionType::RemoveLiquidity => {
-                // Additional logic for RemoveLiquidity
+                //  logic for removing liquidity
+                // This could involve simply removing the entries or updating them
+                // Here, we'll assume we remove the entries for simplicity
+                new_authorities.remove(&utxo.txid);
+                new_data.remove(&utxo.txid);
             },
             // Handle other cases
         }
