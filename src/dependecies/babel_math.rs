@@ -1,5 +1,6 @@
 use num_bigint::BigUint;
-use num_traits::{One, Zero};
+use num_traits::{Zero, One};
+use arch_sdk::{Utxo, UtxoSet, zkvm};
 
 pub struct BabelMath;
 
@@ -70,7 +71,7 @@ impl BabelMath {
         if debt > BigUint::zero() {
             (&coll * BigUint::from(Self::NICR_PRECISION)) / debt
         } else {
-            BigUint::from(u128::MAX)
+            BigUint::from(u128::MAX) // Represents "infinite" CR
         }
     }
 
@@ -78,7 +79,7 @@ impl BabelMath {
         if debt > BigUint::zero() {
             (&coll * &price) / debt
         } else {
-            BigUint::from(u128::MAX)
+            BigUint::from(u128::MAX) // Represents "infinite" CR
         }
     }
 
@@ -86,31 +87,9 @@ impl BabelMath {
         if debt > BigUint::zero() {
             &coll / debt
         } else {
-            BigUint::from(u128::MAX)
+            BigUint::from(u128::MAX) // Represents "infinite" CR
         }
     }
 }
 
-
-/*
-main.rs entry point
-
-mod babel_math;
-
-use babel_math::BabelMath;
-use num_bigint::BigUint;
-
-fn main() {
-    let a = BigUint::from(10u32);
-    let b = BigUint::from(20u32);
-
-    let min_value = BabelMath::min(a.clone(), b.clone());
-    let max_value = BabelMath::max(a.clone(), b.clone());
-    let dec_mul_result = BabelMath::dec_mul(a.clone(), b.clone());
-
-    println!("Min value: {}", min_value);
-    println!("Max value: {}", max_value);
-    println!("Decimal multiplication result: {}", dec_mul_result);
-}
-
-*/
+// Additional functions for UTXO handling and ZKVM integration can be added here.

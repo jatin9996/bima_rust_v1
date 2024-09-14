@@ -1,4 +1,4 @@
-pub trait BorrowerOperations {
+pub trait BorrowerOperations {   
     /// Structure representing balances, including collaterals, debts, and prices.
     struct Balances {
         collaterals: Vec<u128>,

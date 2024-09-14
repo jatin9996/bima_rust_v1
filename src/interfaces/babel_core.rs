@@ -1,4 +1,4 @@
-pub trait BabelCore {
+pub trait BabelCore {  
     // Event Emitters 
     fn emit_fee_receiver_set(&self, fee_receiver: &str);
     fn emit_guardian_set(&self, guardian: &str);
@@ -23,6 +23,11 @@ pub trait BabelCore {
     fn set_paused(&mut self, paused: bool);
 
     fn set_price_feed(&mut self, price_feed: &str);
+
+    // UTXO and ZKVM specific methods
+    fn add_liquidity(&mut self, utxo: Utxo);
+    fn remove_liquidity(&mut self, utxo: Utxo);
+    fn process_instruction(&self, instruction_data: &[u8]) -> Result<()>;
 
     // Getter functions
     fn ownership_transfer_delay(&self) -> u128;

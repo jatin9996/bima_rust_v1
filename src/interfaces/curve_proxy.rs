@@ -1,3 +1,8 @@
+use crate::models::{TokenBalance, GaugeWeightVote, Utxo, AuthorityMessage};
+use anyhow::Result;
+use sdk::utxo::{UtxoSet, UtxoRef};
+use sdk::zkvm::{ZkProgram, ZkProof};
+
 pub struct GaugeWeightVote {
     pub gauge: String,
     pub weight: u128,
@@ -8,79 +13,28 @@ pub struct TokenBalance {
     pub amount: u128,
 }
 
-pub trait CurveProxy {
-    // Events
-    fn emit_crv_fee_pct_set(&self, fee_pct: u64);
+pub trait ICurveProxy {
+    /// Adds liquidity to the pool, creating a new UTXO representing the updated state.
+    fn add_liquidity(&mut self, utxos: &UtxoSet, liquidity_amount: u128, authority: &AuthorityMessage) -> Result<Utxo>;
 
-    // Functions
-    fn approve_gauge_deposit(&mut self, gauge: &str, depositor: &str) -> bool;
+    /// Removes liquidity from the pool, updating the UTXO state accordingly.
+    fn remove_liquidity(&mut self, utxos: &UtxoSet, liquidity_amount: u128, authority: &AuthorityMessage) -> Result<Utxo>;
 
-    fn claim_fees(&mut self) -> u128;
+    /// Votes for gauge weights using a zero-knowledge proof to validate the vote without revealing voter identity.
+    fn vote_for_gauge_weights(&mut self, utxos: &UtxoSet, votes: &[GaugeWeightVote], authority: &AuthorityMessage) -> Result<ZkProof>;
 
-    fn execute(&mut self, target: &str, data: &[u8]) -> Vec<u8>;
+    /// Executes arbitrary functions within the contract in a zero-knowledge environment.
+    fn execute(&mut self, utxos: &UtxoSet, data: &[u8], authority: &AuthorityMessage) -> Result<ZkProof>;
 
-    fn lock_crv(&mut self) -> bool;
+    /// Claims fees accumulated from the liquidity pool, returning a new UTXO with updated balances.
+    fn claim_fees(&mut self, utxos: &UtxoSet, authority: &AuthorityMessage) -> Result<Utxo>;
 
-    fn mint_crv(&mut self, gauge: &str, receiver: &str) -> u128;
+    /// Transfers tokens between addresses, updating UTXOs accordingly.
+    fn transfer_tokens(&mut self, utxos: &UtxoSet, transfers: &[TokenBalance], authority: &AuthorityMessage) -> Result<Vec<Utxo>>;
 
-    fn set_crv_fee_pct(&mut self, fee_pct: u64) -> bool;
+    /// Deploys the contract to the network, compiling it into an ELF file and using RPC to interact with it.
+    fn deploy(&self) -> Result<()>;
 
-    fn set_deposit_manager(&mut self, deposit_manager: &str) -> bool;
-
-    fn set_execute_permissions(
-        &mut self,
-        caller: &str,
-        target: &str,
-        selectors: &[u32],  
-        permitted: bool,
-    ) -> bool;
-
-    fn set_gauge_rewards_receiver(&mut self, gauge: &str, receiver: &str) -> bool;
-
-    fn set_per_gauge_approval(&mut self, caller: &str, gauge: &str) -> bool;
-
-    fn set_vote_manager(&mut self, vote_manager: &str) -> bool;
-
-    fn transfer_tokens(&mut self, receiver: &str, balances: &[TokenBalance]) -> bool;
-
-    fn vote_for_gauge_weights(&mut self, votes: &[GaugeWeightVote]) -> bool;
-
-    fn vote_in_curve_dao(&mut self, aragon: &str, id: u128, support: bool) -> bool;
-
-    fn withdraw_from_gauge(
-        &mut self,
-        gauge: &str,
-        lp_token: &str,
-        amount: u128,
-        receiver: &str,
-    ) -> bool;
-
-    // Getter functions
-    fn crv(&self) -> &str;
-
-    fn babel_core(&self) -> &str;
-
-    fn crv_fee_pct(&self) -> u64;
-
-    fn deposit_manager(&self) -> &str;
-
-    fn fee_distributor(&self) -> &str;
-
-    fn fee_token(&self) -> &str;
-
-    fn gauge_controller(&self) -> &str;
-
-    fn guardian(&self) -> &str;
-
-    fn minter(&self) -> &str;
-
-    fn owner(&self) -> &str;
-
-    fn per_gauge_approval(&self, caller: &str) -> &str;
-
-    fn unlock_time(&self) -> u64;
-
-    fn vote_manager(&self) -> &str;
-
-    fn voting_escrow(&self) -> &str;
+    /// Queries the state UTXOs and liquidity pool data.
+    fn query_state(&self, utxo_ref: &UtxoRef) -> Result<Utxo>;
 }

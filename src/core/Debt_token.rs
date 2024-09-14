@@ -1,70 +1,48 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+use borsh::{BorshSerialize, BorshDeserialize};
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    utxo::UtxoMeta,
+};
+use crate::interfaces2::debt_token_interface::{MintParams, BurnParams, TransferParams};
 
-use ink_lang as ink;
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct DebtToken {
+    pub name: String,
+    pub symbol: String,
+    pub total_supply: u128,
+    pub balances: Vec<(Pubkey, u128)>,
+}
 
-#[ink::contract]
-mod debt_token {
-    use ink_storage::{
-        collections::HashMap as StorageHashMap,
-        traits::{PackedLayout, SpreadLayout},
-    };
+entrypoint!(process_instruction);
 
-    #[ink(storage)]
-    pub struct DebtToken {
-        name: ink_prelude::string::String,
-        symbol: ink_prelude::string::String,
-        total_supply: Balance,
-        balances: StorageHashMap<AccountId, Balance>,
-        allowances: StorageHashMap<(AccountId, AccountId), Balance>,
+pub fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction_data: &[u8],
+) -> Result<(), ProgramError> {
+    // Deserialize instruction data and route to appropriate function
+    let params = borsh::deserialize::<MintParams>(instruction_data)?;
+    match params {
+        MintParams { recipient, amount } => mint(program_id, &recipient, amount),
+        BurnParams { account, amount } => burn(program_id, &account, amount),
+        TransferParams { from, to, amount } => transfer(program_id, &from, &to, amount),
     }
+}
 
-    pub type AccountId = ink_env::AccountId;
-    pub type Balance = u128;
+pub fn mint(program_id: &Pubkey, recipient: &Pubkey, amount: u128) -> Result<(), ProgramError> {
+    // Logic to mint new tokens
+    Ok(())
+}
 
-    impl DebtToken {
-        #[ink(constructor)]
-        pub fn new(name: ink_prelude::string::String, symbol: ink_prelude::string::String) -> Self {
-            Self {
-                name,
-                symbol,
-                total_supply: 0,
-                balances: StorageHashMap::new(),
-                allowances: StorageHashMap::new(),
-            }
-        }
+pub fn burn(program_id: &Pubkey, holder: &Pubkey, amount: u128) -> Result<(), ProgramError> {
+    // Logic to burn tokens
+    Ok(())
+}
 
-        #[ink(message)]
-        pub fn mint(&mut self, account: AccountId, amount: Balance) {
-            let balance = self.balances.entry(account).or_insert(0);
-            *balance += amount;
-            self.total_supply += amount;
-        }
-
-        #[ink(message)]
-        pub fn burn(&mut self, account: AccountId, amount: Balance) {
-            let balance = self.balances.entry(account).or_default();
-            if *balance < amount {
-                ink_env::panic("Insufficient balance");
-            }
-            *balance -= amount;
-            self.total_supply -= amount;
-        }
-
-        #[ink(message)]
-        pub fn approve(&mut self, owner: AccountId, spender: AccountId, amount: Balance) {
-            self.allowances.insert((owner, spender), amount);
-        }
-
-        #[ink(message)]
-        pub fn transfer(&mut self, from: AccountId, to: AccountId, amount: Balance) {
-            let from_balance = self.balances.entry(from).or_default();
-            if *from_balance < amount {
-                ink_env::panic("Insufficient balance");
-            }
-            *from_balance -= amount;
-
-            let to_balance = self.balances.entry(to).or_insert(0);
-            *to_balance += amount;
-        }
-    }
+pub fn transfer(program_id: &Pubkey, from: &Pubkey, to: &Pubkey, amount: u128) -> Result<(), ProgramError> {
+    // Logic to transfer tokens
+    Ok(())
 }

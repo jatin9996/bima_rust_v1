@@ -6,24 +6,29 @@ mod dao;
 mod core;
 mod staking;
 
-use borsh::{BorshDeserialize};
+use borsh::{BorshDeserialize, BorshSerialize};
+use crate::fee_receiver::FeeReceiver;
 
-entrypoint!(process_instructions);
+mod fee_receiver;
+mod models;
+mod utils;
 
-fn process_instructions(input: *mut u8) -> u64 {
-    let (program_id, accounts, instruction_data) =
-        unsafe { crate::entrypoint::deserialize(input) };
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct EntryPoint;
 
-    let instruction: core::instructions::ContractInstruction = match ContractInstruction::try_from_slice(&instruction_data) {
-        Ok(instr) => instr,
-        Err(_) => return 1, // Error code for deserialization failure
-    };
+impl EntryPoint {
+    pub fn process_instruction(instruction_data: &[u8], utxos: &[UtxoInfo]) -> Result<(), String> {
+        // Deserialize instruction data to determine the action
+        let action = utils::deserialize_action(instruction_data)?;
 
-    match crate::core::handler::process_instructions(&program_id, &accounts, &instruction) {
-        Ok(()) => 0,
-        Err(e) => {
-            crate::msg!("Error: {:?}", e);
-            1 // Error code for processing failure
+        match action {
+            Action::Transfer { token_id, receiver, amount } => {
+                FeeReceiver::transfer_token(token_id, receiver, amount, utxos)
+            },
+            Action::Approve { token_id, spender, amount } => {
+                FeeReceiver::set_token_approval(token_id, spender, amount, utxos)
+            },
+            _ => Err("Unsupported action".to_string()),
         }
     }
 }
