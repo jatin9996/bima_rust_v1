@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct InitialAllowance {
     pub receiver: String, 
     pub amount: u256,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use borsh::{BorshDeserialize, BorshSerialize};
 
 pub struct TroveManager {
     troves: HashMap<AccountId, Trove>,
@@ -20,7 +21,7 @@ pub struct TroveManager {
     sunsetting: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Trove {
     debt: Balance,
     coll: Balance,
@@ -30,7 +31,7 @@ pub struct Trove {
     active_interest_index: Balance,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub enum Status {
     NonExistent,
     Active,
@@ -124,8 +125,16 @@ impl TroveManager {
     fn get_caller(&self) -> AccountId {
         self.owner 
     }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization should not fail")
+    }
+
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization should not fail")
+    }
 }
 
-type AccountId = u32; //  type definition
+type AccountId = u32; // type definition
 type Balance = u64; // type definition
-type Timestamp = u64; //  type definition
+type Timestamp = u64; // type definition

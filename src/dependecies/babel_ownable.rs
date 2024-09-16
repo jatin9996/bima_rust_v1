@@ -1,5 +1,7 @@
 // Standard Rust module for BabelOwnable without blockchain-specific features
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct BabelOwnable {
     babel_core: String, 
     guardian_account: String, // Separate field for the guardian
@@ -33,5 +35,14 @@ fn main() {
     println!("Owner: {}", babel_ownable.owner());
     println!("Guardian: {}", babel_ownable.guardian());
     println!("Is owner: {}", babel_ownable.only_owner(&"owner_account_id".to_string()));
+
+    // Serialize the struct
+    let serialized_data = babel_ownable.try_to_vec().unwrap();
+    println!("Serialized: {:?}", serialized_data);
+
+    // Deserialize the struct
+    let deserialized_babel_ownable: BabelOwnable = BabelOwnable::try_from_slice(&serialized_data).unwrap();
+    println!("Deserialized Owner: {}", deserialized_babel_ownable.owner());
+    println!("Deserialized Guardian: {}", deserialized_babel_ownable.guardian());
 }
 

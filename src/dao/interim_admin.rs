@@ -1,19 +1,23 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use log::{info, warn};
 use crate::interfaces::babel_core::BabelCore; // Ensure BabelCore is in scope
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct Proposal {
     created_at: u64,
     can_execute_after: u64,
     processed: bool,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct Action {
     target: String, // Assuming target is a string identifier
     data: Vec<u8>,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct InterimAdmin {
     babel_core: String,
     proposals: Vec<Proposal>,
@@ -77,7 +81,7 @@ impl InterimAdmin {
     }
 
     fn get_current_time(&self) -> u64 {
-        //  for actual time fetching logic
+        // Placeholder for actual time fetching logic
         0
     }
 

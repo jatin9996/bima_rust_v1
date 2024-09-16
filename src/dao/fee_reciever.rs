@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct Token {
     balances: HashMap<AccountId, Balance>,
     allowances: HashMap<(AccountId, AccountId), Balance>,
@@ -29,6 +31,7 @@ impl Token {
     }
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct FeeReceiver {
     owner: AccountId,
     tokens: HashMap<String, Token>,

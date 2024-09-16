@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 use crate::interfaces::trove_manager::TroveManager;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Node {
     exists: bool,
     next_id: Option<u32>, // Assuming AccountId can be represented as u32 for simplicity
@@ -9,6 +10,7 @@ pub struct Node {
     nicr: u256, // Add NICR field
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct SortedTroves {
     head: Option<u32>,
     tail: Option<u32>,
@@ -147,3 +149,14 @@ impl SortedTroves {
 
         true
     }
+
+    // Serialization method
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization failed")
+    }
+
+    // Deserialization method
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization failed")
+    }
+}

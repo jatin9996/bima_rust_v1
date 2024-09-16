@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use borsh::{BorshSerialize, BorshDeserialize};
 
 struct BabelOwnable {
     owner: String,
@@ -14,6 +15,7 @@ impl BabelOwnable {
     }
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct Factory {
     babel_ownable: BabelOwnable,
     trove_manager_impl: TroveManager,
@@ -66,9 +68,17 @@ impl Factory {
 
         Ok(())
     }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization failed")
+    }
+
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization failed")
+    }
 }
 
-#[derive(Clone)]
+#[derive(Clone, BorshSerialize, BorshDeserialize)]
 struct TroveManager {
     troves: HashMap<String, Trove>,
     address: String,
@@ -95,7 +105,7 @@ impl TroveManager {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, BorshSerialize, BorshDeserialize)]
 struct SortedTroves {
     // Assuming fields and methods for SortedTroves
 }
@@ -112,6 +122,7 @@ impl SortedTroves {
     }
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct DeploymentParams {
     // Parameters as needed
 }

@@ -1,31 +1,39 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct LiquidationEvent {
+    pub liquidated_debt: u256,
+    pub liquidated_coll: u256,
+    pub coll_gas_compensation: u256,
+    pub debt_gas_compensation: u256,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct TroveLiquidated {
+    pub borrower: String,
+    pub debt: u256,
+    pub coll: u256,
+    pub operation: u8,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct TroveUpdated {
+    pub borrower: String,
+    pub debt: u256,
+    pub coll: u256,
+    pub stake: u256,
+    pub operation: u8,
+}
+
 pub trait ILiquidationManager {
     /// Represents the event when a liquidation occurs.
-    fn liquidation_event(
-        &self,
-        liquidated_debt: u256,
-        liquidated_coll: u256,
-        coll_gas_compensation: u256,
-        debt_gas_compensation: u256,
-    );
+    fn liquidation_event(&self, event: LiquidationEvent);
 
     /// Represents the event when a trove is liquidated.
-    fn trove_liquidated(
-        &self,
-        borrower: &str,
-        debt: u256,
-        coll: u256,
-        operation: u8,
-    );
+    fn trove_liquidated(&self, event: TroveLiquidated);
 
     /// Represents the event when a trove is updated.
-    fn trove_updated(
-        &self,
-        borrower: &str,
-        debt: u256,
-        coll: u256,
-        stake: u256,
-        operation: u8,
-    );
+    fn trove_updated(&self, event: TroveUpdated);
 
     /// Batch liquidates multiple troves.
     fn batch_liquidate_troves(&self, trove_manager: &str, trove_array: &[&str]);

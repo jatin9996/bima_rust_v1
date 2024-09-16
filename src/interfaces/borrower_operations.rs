@@ -1,5 +1,8 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 pub trait BorrowerOperations {
     /// Structure representing balances, including collaterals, debts, and prices.
+    #[derive(BorshSerialize, BorshDeserialize)]
     struct Balances {
         collaterals: Vec<u128>,
         debts: Vec<u128>,

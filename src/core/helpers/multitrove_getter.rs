@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct CombinedTroveData {
     owner: String, // Assuming AccountId is a String for simplicity
     debt: u128,
@@ -61,5 +62,13 @@ impl MultiTroveGetter {
             }
         }
         troves_data
+    }
+
+    pub fn serialize_troves(&self, troves: &Vec<CombinedTroveData>) -> Vec<u8> {
+        troves.try_to_vec().expect("Serialization failed")
+    }
+
+    pub fn deserialize_troves(data: &[u8]) -> Vec<CombinedTroveData> {
+        Vec::<CombinedTroveData>::try_from_slice(data).expect("Deserialization failed")
     }
 }

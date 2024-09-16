@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::maybestd::io::{Error, ErrorKind};
 
 // Assuming a simplified interface for AggregatorV3Interface
 trait AggregatorV3Interface {
     fn latest_round_data(&self) -> (u64, i128, u32, u32, u32);
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, BorshSerialize, BorshDeserialize)]
 pub struct OracleRecord {
     chainlink_oracle: Box<dyn AggregatorV3Interface>,
     decimals: u8,
@@ -17,7 +19,7 @@ pub struct OracleRecord {
     is_eth_indexed: bool,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, BorshSerialize, BorshDeserialize)]
 pub struct PriceRecord {
     scaled_price: u128,
     timestamp: u32,
@@ -25,6 +27,7 @@ pub struct PriceRecord {
     round_id: u64,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct PriceFeed {
     oracle_records: HashMap<String, OracleRecord>,
     price_records: HashMap<String, PriceRecord>,

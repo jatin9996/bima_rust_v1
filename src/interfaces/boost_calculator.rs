@@ -1,4 +1,6 @@
-pub trait BoostCalculator {
+use borsh::{BorshDeserialize, BorshSerialize};
+
+pub trait BoostCalculator: BorshSerialize + BorshDeserialize {
     fn get_boosted_amount_write(
         &mut self,
         account: &str,

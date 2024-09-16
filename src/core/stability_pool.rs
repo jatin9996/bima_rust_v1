@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 use crate::dependencies::babel_ownable::BabelOwnable;
 use crate::dependencies::system_start::SystemStart;
 use crate::dependencies::babel_math::BabelMath;
 use crate::interfaces::stability_pool::IStabilityPool;
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct StabilityPool {
     deposits: HashMap<AccountId, Balance>,
     total_stablecoins: Balance,
@@ -94,6 +96,14 @@ impl StabilityPool {
         let interest_rate: Balance = 5; // Interest rate of 5%
         let rate_decimal: Balance = interest_rate / 100; // Convert to decimal
         coll * rate_decimal * debt // Calculate simple interest
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization failed")
+    }
+
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization failed")
     }
 }
 

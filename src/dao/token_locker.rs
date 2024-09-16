@@ -4,6 +4,7 @@ use crate::dependencies::system_start::SystemStart;
 use crate::dependencies::babel_ownable::BabelOwnable;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use borsh::{BorshDeserialize, BorshSerialize}; // Add this line
 
 struct TokenLocker {
     lock_to_token_ratio: u64,
@@ -14,7 +15,7 @@ struct TokenLocker {
     babel_ownable: BabelOwnable,
 }
 
-#[derive(Default, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Default, Debug)] // Add BorshSerialize and BorshDeserialize
 struct AccountData {
     locked: u32,
     unlocked: u32,
@@ -130,6 +131,14 @@ impl TokenLocker {
         // Assuming we have a method in BabelOwnable to transfer tokens
         self.babel_ownable.transfer_to_locker(account, amount * self.lock_to_token_ratio);
     }
+
+    fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization should not fail")
+    }
+
+    fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization should not fail")
+    }
 }
 
-type AccountId = u32; 
+type AccountId = u32;

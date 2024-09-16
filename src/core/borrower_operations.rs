@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct BorrowerOperationsState {
     min_net_debt: u64,
     trove_manager: TroveManager,
@@ -78,8 +80,17 @@ impl BorrowerOperationsState {
             "Unauthorized"
         );
     }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization failed")
+    }
+
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization failed")
+    }
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct TroveManagerData {
     collateral_token: String,
     index: u16,

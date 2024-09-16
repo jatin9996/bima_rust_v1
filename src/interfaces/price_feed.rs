@@ -1,3 +1,23 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct OracleRecord {
+    pub chainlink_oracle: String,
+    pub decimals: u8,
+    pub share_price_signature: [u8; 4],
+    pub share_price_decimals: u8,
+    pub is_feed_working: bool,
+    pub is_eth_indexed: bool,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct PriceRecord {
+    pub scaled_price: u96,
+    pub timestamp: u32,
+    pub last_updated: u32,
+    pub round_id: u80,
+}
+
 pub trait IPriceFeed {
     /// Event triggered when a new oracle is registered.
     fn new_oracle_registered(&self, token: &str, chainlink_aggregator: &str, is_eth_indexed: bool);
@@ -37,29 +57,11 @@ pub trait IPriceFeed {
     fn guardian(&self) -> &str;
 
     /// Returns details about the oracle records for a token.
-    fn oracle_records(
-        &self,
-        token: &str
-    ) -> (
-        &str,       // chainLinkOracle
-        u8,         // decimals
-        [u8; 4],    // sharePriceSignature
-        u8,         // sharePriceDecimals
-        bool,       // isFeedWorking
-        bool        // isEthIndexed
-    );
+    fn oracle_records(&self, token: &str) -> OracleRecord;
 
     /// Returns the owner address.
     fn owner(&self) -> &str;
 
     /// Returns details about the price records for a token.
-    fn price_records(
-        &self,
-        token: &str
-    ) -> (
-        u96,        // scaledPrice
-        u32,        // timestamp
-        u32,        // lastUpdated
-        u80         // roundId
-    );
+    fn price_records(&self, token: &str) -> PriceRecord;
 }

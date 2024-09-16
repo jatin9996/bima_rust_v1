@@ -1,6 +1,8 @@
 use log::{info, warn};
+use borsh::{BorshDeserialize, BorshSerialize};
 
 // Define a struct to hold state similar to Solidity's contract state
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct BabelCoreState {
     fee_receiver: String,
     guardian: String,
@@ -141,6 +143,14 @@ pub trait BabelCore {
         }
     }
    
+    // Serialization and Deserialization methods
+    fn serialize_state(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Failed to serialize state")
+    }
+
+    fn deserialize_state(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Failed to deserialize state")
+    }
 }
 
 

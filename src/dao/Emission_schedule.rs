@@ -1,7 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use ink_prelude::collections::VecDeque;
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct BabelOwnable {
     owner: AccountId,
 }
@@ -16,6 +18,7 @@ impl BabelOwnable {
     }
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct EmissionSchedule {
     owner: AccountId,
     system_start: Timestamp,

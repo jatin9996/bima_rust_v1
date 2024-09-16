@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct TroveManagerGetters {
     trove_managers: HashMap<u32, String>,
     trove_to_collateral: HashMap<String, String>,

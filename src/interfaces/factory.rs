@@ -1,5 +1,8 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 pub trait IFactory {
     /// Represents parameters used for deployment.
+    #[derive(BorshSerialize, BorshDeserialize)]
     struct DeploymentParams {
         minute_decay_factor: u128, // half life of 12 hours
         redemption_fee_floor: u128, // 0.5%

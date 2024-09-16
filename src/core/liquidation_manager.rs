@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use log::{info, warn};
+use borsh::{BorshSerialize, BorshDeserialize};
 
 pub struct LiquidationManager {
     stability_pool: String,
@@ -9,7 +10,7 @@ pub struct LiquidationManager {
     enabled_trove_managers: HashMap<String, bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Liquidation {
     borrower: String,
     liquidated_debt: u64,

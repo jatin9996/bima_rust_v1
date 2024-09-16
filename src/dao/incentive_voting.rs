@@ -1,10 +1,12 @@
 #![no_std]
 
-use core::collections::BTeeMap;
+use core::collections::BTreeMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 const MAX_POINTS: u16 = 10000;
 const MAX_LOCK_WEEKS: u8 = 52;
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct IncentiveVoting {
     token_locker: AccountId,
     vault: AccountId,
@@ -22,7 +24,7 @@ pub struct IncentiveVoting {
     system_start: u64,
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct AccountData {
     week: u16,
     frozen_weight: u64,
@@ -32,6 +34,44 @@ pub struct AccountData {
     active_votes: Vec<(u16, u16)>,
     locked_amounts: Vec<u32>,
     weeks_to_unlock: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
+pub struct Vote {
+    id: u128,
+    points: u128,
+}
+
+// Event definitions
+#[derive(BorshSerialize, BorshDeserialize)]
+pub enum Event {
+    AccountWeightRegistered {
+        account: AccountId,
+        week: u16,
+        frozen_weight: u64,
+        lock_data: Vec<LockData>,
+    },
+    VotesUpdated {
+        account: AccountId,
+        week: u16,
+        votes: Vec<Vote>,
+        points: u16,
+    },
+    ClearedVotes {
+        account: AccountId,
+        week: u16,
+    },
+    AccountVotesStored {
+        account: AccountId,
+        votes: Vec<Vote>,
+        points: u16,
+    },
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct LockData {
+    amount: u32,
+    weeks_to_unlock: u8,
 }
 
 impl IncentiveVoting {
@@ -228,40 +268,12 @@ impl IncentiveVoting {
             vec![]
         }
     }
-}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Vote {
-    id: u128,
-    points: u128,
-}
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization should not fail")
+    }
 
-// Event definitions
-pub enum Event {
-    AccountWeightRegistered {
-        account: AccountId,
-        week: u16,
-        frozen_weight: u64,
-        lock_data: Vec<LockData>,
-    },
-    VotesUpdated {
-        account: AccountId,
-        week: u16,
-        votes: Vec<Vote>,
-        points: u16,
-    },
-    ClearedVotes {
-        account: AccountId,
-        week: u16,
-    },
-    AccountVotesStored {
-        account: AccountId,
-        votes: Vec<Vote>,
-        points: u16,
-    },
-}
-
-pub struct LockData {
-    amount: u32,
-    weeks_to_unlock: u8,
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization should not fail")
+    }
 }

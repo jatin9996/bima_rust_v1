@@ -4,7 +4,9 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::interfaces::token_locker::ITokenLocker;
 use crate::interfaces::babel_core::BabelCore;
+use borsh::{BorshDeserialize, BorshSerialize}; // Add Borsh imports
 
+#[derive(BorshSerialize, BorshDeserialize)] // Derive Borsh traits
 pub struct AdminVoting {
     token_locker: Box<dyn ITokenLocker>,
     babel_core: Box<dyn BabelCore>,
@@ -17,6 +19,7 @@ pub struct AdminVoting {
     system_start: u64,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)] // Derive Borsh traits
 pub struct Proposal {
     week: u16,
     created_at: u64,
@@ -26,6 +29,7 @@ pub struct Proposal {
     processed: bool,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)] // Derive Borsh traits
 pub struct Action {
     target: String,
     data: Vec<u8>,

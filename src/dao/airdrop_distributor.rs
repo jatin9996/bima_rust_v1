@@ -8,6 +8,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sp_std::prelude::*;
 use frame_support::{decl_module, decl_event, decl_error};
 
+// Import Borsh traits
+use borsh::{BorshSerialize, BorshDeserialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
 struct AirdropDistributor {
     owner: String,
     merkle_root: Option<Vec<u8>>,

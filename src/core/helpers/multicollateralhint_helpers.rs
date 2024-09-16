@@ -1,7 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct MultiCollateralHintHelpers {
     borrower_operations: Box<dyn IBorrowerOperations>,
 }

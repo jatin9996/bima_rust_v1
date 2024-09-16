@@ -1,15 +1,18 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
+use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::maybestd::io::{Error, ErrorKind};
 
 const OWNERSHIP_TRANSFER_DELAY: u64 = 86400 * 3; // 3 days
 
-#[derive(Clone)]
+#[derive(Clone, BorshSerialize, BorshDeserialize)]
 pub struct UTXO {
     pub txid: Vec<u8>,
     pub vout: u32,
     pub value: u64,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct BabelCore {
     utxos: HashMap<(Vec<u8>, u32), UTXO>,
     fee_receiver: String,
@@ -127,5 +130,13 @@ impl BabelCore {
 
     fn is_owner(&self, caller: &String) -> bool {
         &self.owner == caller
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>, Error> {
+        self.try_to_vec().map_err(|e| Error::new(ErrorKind::Other, e))
+    }
+
+    pub fn deserialize(data: &[u8]) -> Result<Self, Error> {
+        Self::try_from_slice(data).map_err(|e| Error::new(ErrorKind::Other, e))
     }
 }

@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct Vault {
     babel_token: String,
     emission_schedule: String,
@@ -205,18 +207,31 @@ impl Vault {
             panic!("Receiver not found in allocated tokens");
         }
     }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Failed to serialize Vault")
+    }
+
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Failed to deserialize Vault")
+    }
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct Receiver {
-    account: String, // Using String to represent an account/address
+    account: String,
     is_active: bool,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct BoostDelegation {
     is_enabled: bool,
     fee_pct: u16,
-    callback: Option<String>, // Assuming callback is a string identifier for simplicity
+    callback: Option<String>,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct BabelOwnable;
+
+#[derive(BorshSerialize, BorshDeserialize)]
 struct SystemStart;

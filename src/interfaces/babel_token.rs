@@ -1,3 +1,14 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct BabelTokenData {
+    // Add fields that you want to serialize/deserialize
+    pub owner: String,
+    pub spender: String,
+    pub value: u128,
+    // Add other fields as necessary
+}
+
 pub trait BabelToken {
     // Event Emitters (Represented as functions for simplicity)
     fn emit_approval(&self, owner: &str, spender: &str, value: u128);

@@ -1,6 +1,8 @@
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
+use borsh::{BorshSerialize, BorshDeserialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct BabelMath;
 
 impl BabelMath {

@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 use secp256k1::{Secp256k1, Message, PublicKey, Signature};
+use borsh::{BorshSerialize, BorshDeserialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct DebtToken {
     name: String,
     symbol: String,

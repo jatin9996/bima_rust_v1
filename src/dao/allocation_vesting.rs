@@ -3,15 +3,16 @@
 use std::collections::HashMap;
 use crate::interfaces::token_locker::{ITokenLocker, LockData};
 use crate::dependencies::babel_ownable::BabelOwnable;
+use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct AllocationSplit {
     recipient: String,  // Using String to represent AccountId for simplicity
     points: u32,
     number_of_weeks: u8,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct AllocationState {
     points: u32,
     number_of_weeks: u8,
@@ -19,6 +20,7 @@ pub struct AllocationState {
     preclaimed: u128,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct AllocationVesting {
     allocations: HashMap<String, AllocationState>,
     max_total_preclaim_pct: u32,
@@ -238,6 +240,14 @@ impl AllocationVesting {
     fn current_timestamp(&self) -> u64 {
         // Implement a method to get the current timestamp
         0
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_to_vec().expect("Serialization should not fail")
+    }
+
+    pub fn deserialize(data: &[u8]) -> Self {
+        Self::try_from_slice(data).expect("Deserialization should not fail")
     }
 }
 

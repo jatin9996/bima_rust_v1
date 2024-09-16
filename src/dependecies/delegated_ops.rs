@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct DelegatedOps {
     is_approved_delegate: HashMap<(String, String), bool>,
 }

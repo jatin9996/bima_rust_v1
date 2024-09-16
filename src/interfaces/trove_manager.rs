@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use borsh::{BorshSerialize, BorshDeserialize};
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct TroveManager {
     troves: HashMap<String, Trove>, // Troves mapped by user ID
     address: String, // Add address field
@@ -8,6 +10,7 @@ pub struct TroveManager {
     collateral: Option<String>, // Add collateral field
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 struct Trove {
     collateral: u64,
     debt: u64,
@@ -43,7 +46,7 @@ impl TroveManager {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, BorshSerialize, BorshDeserialize)]
 pub struct SortedTroves {
     // Assuming fields and methods for SortedTroves
 }

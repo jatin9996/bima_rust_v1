@@ -1,11 +1,12 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct LockData {
     pub amount: u256,
     pub weeks_to_unlock: u256,
 }
 
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct ExtendLockData {
     pub amount: u256,
     pub current_weeks: u256,

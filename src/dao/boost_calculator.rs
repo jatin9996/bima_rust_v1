@@ -3,7 +3,9 @@
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::dependencies::system_start::SystemStart; // Import SystemStart
+use borsh::{BorshDeserialize, BorshSerialize}; // Import Borsh traits
 
+#[derive(BorshSerialize, BorshDeserialize)] // Derive Borsh traits
 pub struct BoostCalculator {
     locker: AccountId,
     max_boost_grace_weeks: u32,

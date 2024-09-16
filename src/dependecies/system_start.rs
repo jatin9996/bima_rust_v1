@@ -1,6 +1,8 @@
 mod system_start {
     use std::time::{SystemTime, UNIX_EPOCH};
+    use borsh::{BorshSerialize, BorshDeserialize};
 
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct SystemStart {
         start_time: u64,
     }
@@ -20,6 +22,7 @@ mod system_start {
         fn start_time(&self) -> u64;
     }
 
+    #[derive(BorshSerialize, BorshDeserialize)]
     pub struct BabelCore {
         start_time: u64,
     }
