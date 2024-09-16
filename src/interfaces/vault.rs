@@ -69,7 +69,7 @@ pub trait IBabelVault {
         boost_delegate: String,
         reward_contract: String
     ) -> Result<(u256, u256), String>;
-    
+  
     fn emission_schedule(&self) -> Result<String, String>;
     
     fn get_claimable_with_boost(&self, claimant: String) -> Result<(u256, u256), String>;

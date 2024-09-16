@@ -1,42 +1,29 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+use std::collections::HashMap;
 
-use ink_lang as ink;
+pub struct DelegatedOps {
+    is_approved_delegate: HashMap<(String, String), bool>,
+}
 
-#[ink::contract]
-mod delegated_ops {
-    use ink_storage::traits::SpreadAllocate;
-    use ink_storage::Mapping;
-
-    #[ink(storage)]
-    #[derive(SpreadAllocate)]
-    pub struct DelegatedOps {
-        is_approved_delegate: Mapping<(AccountId, AccountId), bool>,
+impl DelegatedOps {
+    pub fn new() -> Self {
+        Self {
+            is_approved_delegate: HashMap::new(),
+        }
     }
 
-    impl DelegatedOps {
-        #[ink(constructor)]
-        pub fn new() -> Self {
-            ink_lang::utils::initialize_contract(|_| {})
-        }
+    pub fn set_delegate_approval(&mut self, caller: String, delegate: String, is_approved: bool) {
+        self.is_approved_delegate.insert((caller, delegate), is_approved);
+    }
 
-        #[ink(message)]
-        pub fn set_delegate_approval(&mut self, delegate: AccountId, is_approved: bool) {
-            let caller = self.env().caller();
-            self.is_approved_delegate.insert((caller, delegate), &is_approved);
-        }
+    pub fn is_approved_delegate(&self, owner: String, caller: String) -> bool {
+        *self.is_approved_delegate.get(&(owner, caller)).unwrap_or(&false)
+    }
 
-        #[ink(message)]
-        pub fn is_approved_delegate(&self, owner: AccountId, caller: AccountId) -> bool {
-            self.is_approved_delegate.get(&(owner, caller)).unwrap_or(false)
-        }
-
-        fn ensure_caller_or_delegated(&self, account: AccountId) {
-            let caller = self.env().caller();
-            assert!(
-                caller == account || self.is_approved_delegate(account, caller),
-                "Delegate not approved"
-            );
-        }
+    pub fn ensure_caller_or_delegated(&self, account: String, caller: String) {
+        assert!(
+            caller == account || self.is_approved_delegate(account.clone(), caller),
+            "Delegate not approved"
+        );
     }
 }
 

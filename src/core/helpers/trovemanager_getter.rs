@@ -1,54 +1,46 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+use std::collections::HashMap;
 
-use ink_lang as ink;
+pub struct TroveManagerGetters {
+    trove_managers: HashMap<u32, String>,
+    trove_to_collateral: HashMap<String, String>,
+    trove_status: HashMap<(String, String), i32>,
+}
 
-#[ink::contract]
-mod trovemanager_getter {
-    use ink_storage::{
-        collections::HashMap as StorageHashMap,
-        traits::SpreadAllocate,
-    };
+impl TroveManagerGetters {
+    pub fn new() -> Self {
+        let mut trove_to_collateral = HashMap::new();
+        let mut trove_status = HashMap::new();
 
-    #[ink(storage)]
-    #[derive(SpreadAllocate)]
-    pub struct TroveManagerGetters {
-        trove_managers: StorageHashMap<u32, String>,
-        trove_to_collateral: StorageHashMap<String, String>,
-        trove_status: StorageHashMap<(String, String), i32>,
+        trove_to_collateral.insert("trove_manager_1".to_string(), "ETH".to_string());
+        trove_to_collateral.insert("trove_manager_2".to_string(), "BTC".to_string());
+        trove_to_collateral.insert("trove_manager_3".to_string(), "DAI".to_string());
+
+        trove_status.insert(("trove_manager_1".to_string(), "account_1".to_string()), 1);
+        trove_status.insert(("trove_manager_2".to_string(), "account_2".to_string()), 0);
+        trove_status.insert(("trove_manager_3".to_string(), "account_3".to_string()), 1);
+
+        TroveManagerGetters {
+            trove_managers: HashMap::new(),
+            trove_to_collateral,
+            trove_status,
+        }
     }
 
-    impl TroveManagerGetters {
-        #[ink(constructor)]
-        pub fn new() -> Self {
-            ink_lang::utils::initialize_contract(|contract: &mut Self| {
-                contract.trove_to_collateral.insert("trove_manager_1".to_string(), "ETH".to_string());
-                contract.trove_to_collateral.insert("trove_manager_2".to_string(), "BTC".to_string());
-                contract.trove_to_collateral.insert("trove_manager_3".to_string(), "DAI".to_string());
-                contract.trove_status.insert(("trove_manager_1".to_string(), "account_1".to_string()), 1);
-                contract.trove_status.insert(("trove_manager_2".to_string(), "account_2".to_string()), 0);
-                contract.trove_status.insert(("trove_manager_3".to_string(), "account_3".to_string()), 1);
-            })
-        }
+    pub fn get_collateral_token(&self, trove_manager: &str) -> String {
+        self.trove_to_collateral.get(trove_manager).cloned().unwrap_or_else(|| "Unknown".to_string())
+    }
 
-        #[ink(message)]
-        pub fn get_collateral_token(&self, trove_manager: String) -> String {
-            self.trove_to_collateral.get(&trove_manager).cloned().unwrap_or_else(|| "Unknown".to_string())
-        }
+    pub fn get_trove_status(&self, trove_manager: &str, account: &str) -> i32 {
+        *self.trove_status.get(&(trove_manager.to_string(), account.to_string())).unwrap_or(&0)
+    }
 
-        #[ink(message)]
-        pub fn get_trove_status(&self, trove_manager: String, account: String) -> i32 {
-            *self.trove_status.get(&(trove_manager, account)).unwrap_or(&0)
-        }
-
-        #[ink(message)]
-        pub fn get_active_trove_managers_for_account(&self, account: String) -> Vec<String> {
-            let mut active_managers = Vec::new();
-            for (key, value) in self.trove_status.iter() {
-                if key.1 == account && *value > 0 {
-                    active_managers.push(key.0.clone());
-                }
+    pub fn get_active_trove_managers_for_account(&self, account: &str) -> Vec<String> {
+        let mut active_managers = Vec::new();
+        for (key, value) in self.trove_status.iter() {
+            if key.1 == account && *value > 0 {
+                active_managers.push(key.0.clone());
             }
-            active_managers
         }
+        active_managers
     }
 }
