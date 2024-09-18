@@ -2,6 +2,9 @@
 
 use sha2::{Sha256, Digest};
 use std::collections::HashMap;
+use merkle_light::merkle::MerkleTree;
+use merkle_light::hash::{Algorithm, Hashable};
+use ring::digest::{Context, Digest, SHA256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Additional imports for event logging and error handling
@@ -45,13 +48,34 @@ impl AirdropDistributor {
         assert!(self.is_claim_period_active() && !self.is_claimed(index), "Claim period has ended or already claimed");
         if self.verify_merkle_proof(index, &claimant, amount, &merkle_proof) {
             // Simulate token transfer from vault to this contract
+            self.transfer_tokens_from_vault(amount);
             // Simulate token locking
+            self.lock_tokens(receiver, amount);
             self.claimed_bitmap.insert(index, true);
             // Simulate callback if receiver is different from claimant
+            if claimant != receiver {
+                self.claim_callback(&receiver, amount);
+            }
             // Emit Claimed event
+            Self::deposit_event(Event::Claimed(index, receiver.clone(), amount));
         } else {
             panic!("Invalid merkle proof");
         }
+    }
+
+    fn transfer_tokens_from_vault(&self, amount: u64) {
+        // Simulate the transfer of tokens from the vault to this contract
+        println!("Transferring {} tokens from vault to contract", amount);
+    }
+
+    fn lock_tokens(&self, receiver: String, amount: u64) {
+        // Simulate the locking of tokens
+        println!("Locking {} tokens for receiver {}", amount, receiver);
+    }
+
+    fn claim_callback(&self, receiver: &String, amount: u64) {
+        // Simulate the callback if receiver is different from claimant
+        println!("Executing claim callback for receiver {} with amount {}", receiver, amount);
     }
 
     pub fn is_claimed(&self, index: u32) -> bool {
@@ -71,8 +95,23 @@ impl AirdropDistributor {
 
     // Implement Merkle proof verification
     fn verify_merkle_proof(&self, index: u32, claimant: &String, amount: u64, merkle_proof: &Vec<Vec<u8>>) -> bool {
-        // Actual implementation needed here
-        true // Placeholder
+        let node = Sha256::digest(&[index.to_le_bytes(), claimant.as_bytes(), &amount.to_le_bytes()].concat());
+        let mut hash = node.to_vec();
+
+        for proof in merkle_proof {
+            let mut hasher = Sha256::new();
+            if hash < proof {
+                hasher.update(&[hash, proof].concat());
+            } else {
+                hasher.update(&[proof, hash].concat());
+            }
+            hash = hasher.finalize().to_vec();
+        }
+
+        match &self.merkle_root {
+            Some(root) => &hash == root,
+            None => false,
+        }
     }
 }
 

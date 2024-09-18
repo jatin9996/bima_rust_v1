@@ -19,8 +19,11 @@ secp256k1 = "0.29.1"
 hex = "0.4.3"
 bitcoin = { version = "0.32.2", features = ["serde", "rand"] }
 bitcoincore-rpc = "0.19.0"
+merkle_light = "0.4.0"           # Light merkle tree implementation with SPV support and dependency agno
+merkle_light_derive = "0.4.0"    # #[derive(Hashable)] for light merkle tree Hashable
 
 
 [features]
 std = ["ink_lang/std", "ink_storage/std"]
+
 
