@@ -1,5 +1,20 @@
 use std::collections::HashMap;
 use borsh::{BorshDeserialize, BorshSerialize};
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
 #[derive(BorshSerialize, BorshDeserialize)]
 struct Vault {
@@ -54,7 +69,10 @@ impl Vault {
         if self.unallocated_total >= amount {
             // Transfer logic here
             self.unallocated_total -= amount;
-            self.babel_token.transfer(receiver, amount);
+            // Use Arch SDK to transfer tokens
+            let receiver_pubkey = Pubkey::new(&receiver.as_bytes());
+            let tx = get_bitcoin_tx(&self.babel_token, &receiver_pubkey, amount);
+            invoke(&tx);
         } else {
             panic!("Insufficient unallocated tokens for transfer");
         }
@@ -62,7 +80,9 @@ impl Vault {
 
     pub fn increase_unallocated_supply(&mut self, amount: u128) {
         self.unallocated_total += amount;
-        self.babel_token.increase_allowance(amount);
+        // Use Arch SDK to increase allowance
+        let tx = get_state_transition_tx(&self.babel_token, amount);
+        invoke(&tx);
     }
 
     fn get_total_weekly_emissions(&self, week: u64) -> u128 {
@@ -71,7 +91,9 @@ impl Vault {
     }
 
     fn lock_tokens(&self, amount: u128, duration: u64) {
-        self.token_locker.lock(amount, duration);
+        // Use Arch SDK to lock tokens
+        let tx = get_state_transition_tx(&self.token_locker, amount);
+        invoke(&tx);
     }
 
     pub fn register_receiver(&mut self, id: u64, account: String) -> bool {
@@ -116,7 +138,9 @@ impl Vault {
     fn transfer_or_lock(&mut self, amount: u128, receiver: String) {
         if self.lock_weeks == 0 {
             // If no lock duration is specified, transfer the tokens directly
-            self.babel_token.transfer(receiver.clone(), amount);
+            let receiver_pubkey = Pubkey::new(&receiver.as_bytes());
+            let tx = get_bitcoin_tx(&self.babel_token, &receiver_pubkey, amount);
+            invoke(&tx);
         } else {
             // Calculate the amount to lock based on the lock-to-token ratio
             let lock_amount = amount / self.lock_to_token_ratio;
@@ -126,7 +150,8 @@ impl Vault {
             
             if lock_amount > 0 {
                 // Lock the calculated amount for the specified duration
-                self.locker.lock(receiver, lock_amount, self.lock_weeks);
+                let tx = get_state_transition_tx(&self.token_locker, lock_amount);
+                invoke(&tx);
             }
         }
     }
@@ -197,7 +222,9 @@ impl Vault {
                 *allocated_amount -= amount;
                 
                 // Transfer the tokens to the receiver
-                self.babel_token.transfer(receiver.clone(), amount);
+                let receiver_pubkey = Pubkey::new(&receiver.as_bytes());
+                let tx = get_bitcoin_tx(&self.babel_token, &receiver_pubkey, amount);
+                invoke(&tx);
             } else {
                 // Handle the case where the allocated amount is insufficient
                 panic!("Insufficient allocated tokens for transfer");

@@ -2,6 +2,21 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use ink_prelude::collections::VecDeque;
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
 #[derive(BorshSerialize, BorshDeserialize)]
 struct BabelOwnable {
@@ -46,6 +61,10 @@ impl EmissionSchedule {
         assert!(lock_decay_weeks > 0, "Decay weeks cannot be 0");
         assert!(weekly_pct <= MAX_PCT, "Cannot exceed MAX_PCT");
 
+        // Use Arch SDK to validate the owner account
+        let owner_info = AccountInfo::new(&owner);
+        assert!(validate_utxo_ownership(&owner_info).is_ok(), "Invalid owner account");
+
         Self {
             owner,
             system_start,
@@ -68,6 +87,10 @@ impl EmissionSchedule {
             last_week = week;
         }
         self.scheduled_weekly_pct = schedule.into_iter().collect();
+
+        // Use Arch SDK to validate the caller account
+        let caller_info = AccountInfo::new(&caller);
+        assert!(validate_utxo_ownership(&caller_info).is_ok(), "Invalid caller account");
     }
 
     pub fn get_weekly_pct(&self, current_week: u64) -> u64 {
@@ -83,11 +106,19 @@ impl EmissionSchedule {
         self.babel_ownable.only_owner(caller);
         assert!(weeks <= MAX_LOCK_WEEKS, "Lock duration exceeds maximum allowed weeks");
         self.lock_weeks = weeks;
+
+        // Use Arch SDK to validate the caller account
+        let caller_info = AccountInfo::new(&caller);
+        assert!(validate_utxo_ownership(&caller_info).is_ok(), "Invalid caller account");
     }
 
     pub fn unlock(&mut self, caller: AccountId) {
         self.babel_ownable.only_owner(caller);
         self.lock_weeks = 0;
+
+        // Use Arch SDK to validate the caller account
+        let caller_info = AccountInfo::new(&caller);
+        assert!(validate_utxo_ownership(&caller_info).is_ok(), "Invalid caller account");
     }
 }
 

@@ -2,6 +2,21 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use borsh::{BorshDeserialize, BorshSerialize};
 use borsh::maybestd::io::{Error, ErrorKind};
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
 const OWNERSHIP_TRANSFER_DELAY: u64 = 86400 * 3; // 3 days
 
@@ -53,35 +68,42 @@ impl BabelCore {
         self.guardian = new_guardian;
     }
 
-    pub fn set_paused(&mut self, new_paused: bool) {
+    pub fn set_paused(&mut self, new_paused: bool) -> Result<(), ProgramError> {
         if new_paused && self.guardian != self.owner {
-            panic!("Unauthorized");
+            return Err(ProgramError::Unauthorized);
         }
         self.paused = new_paused;
+        Ok(())
     }
 
-    pub fn commit_transfer_ownership(&mut self, caller: String, new_owner: String) {
+    pub fn commit_transfer_ownership(&mut self, caller: String, new_owner: String, accounts: &[AccountInfo]) -> Result<(), ProgramError> {
         if self.is_owner(&caller) {
             self.pending_owner = Some(new_owner.clone());
             self.ownership_transfer_deadline = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + OWNERSHIP_TRANSFER_DELAY);
-            println!("Ownership transfer committed to {} with deadline {}", new_owner, self.ownership_transfer_deadline.unwrap());
+            msg!("Ownership transfer committed to {} with deadline {}", new_owner, self.ownership_transfer_deadline.unwrap());
+
+            // Set transaction to sign using Arch SDK
+            set_transaction_to_sign(accounts)?;
+
+            Ok(())
         } else {
-            panic!("Unauthorized attempt to commit ownership transfer by {}", caller);
+            Err(ProgramError::Unauthorized)
         }
     }
 
-    pub fn accept_transfer_ownership(&mut self, caller: String) {
+    pub fn accept_transfer_ownership(&mut self, caller: String) -> Result<(), ProgramError> {
         if let Some(ref pending_owner) = self.pending_owner {
             if caller == *pending_owner && SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() >= self.ownership_transfer_deadline.unwrap() {
-                println!("Ownership transferred from {} to {}", self.owner, pending_owner);
+                msg!("Ownership transferred from {} to {}", self.owner, pending_owner);
                 self.owner = pending_owner.clone();
                 self.pending_owner = None;
                 self.ownership_transfer_deadline = None;
+                Ok(())
             } else {
-                panic!("Unauthorized or premature attempt to accept ownership by {}", caller);
+                Err(ProgramError::Unauthorized)
             }
         } else {
-            panic!("No pending owner");
+            Err(ProgramError::InvalidArgument)
         }
     }
 

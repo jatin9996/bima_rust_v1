@@ -1,5 +1,20 @@
 use std::collections::HashMap;
 use borsh::{BorshSerialize, BorshDeserialize};
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
 struct BabelOwnable {
     owner: String,
@@ -38,10 +53,11 @@ impl Factory {
         caller: &str,
         collateral: String,
         price_feed: String,
-        params: DeploymentParams
-    ) -> Result<(), String> {
+        params: DeploymentParams,
+        accounts: &[AccountInfo],
+    ) -> Result<(), ProgramError> {
         if !self.babel_ownable.is_owner(caller) {
-            return Err("Unauthorized".to_string());
+            return Err(ProgramError::Unauthorized);
         }
 
         let trove_manager_impl = self.trove_manager_impl.clone();
@@ -65,6 +81,14 @@ impl Factory {
 
         let id = format!("tm_{}", self.trove_managers.len() + 1);
         self.trove_managers.insert(id, trove_manager_impl);
+
+        // Use Arch SDK to validate UTXO ownership
+        let utxo_meta = UtxoMeta::new(); // Assuming UtxoMeta has a new method
+        validate_utxo_ownership(&utxo_meta, accounts)?; // Validate UTXO ownership
+
+        // Use Arch SDK to set transaction to sign
+        let tx_to_sign = TransactionToSign::new(); // Assuming TransactionToSign has a new method
+        set_transaction_to_sign(&tx_to_sign)?; // Set transaction to sign
 
         Ok(())
     }

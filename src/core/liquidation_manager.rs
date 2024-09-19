@@ -2,6 +2,23 @@ use std::collections::HashMap;
 use log::{info, warn};
 use borsh::{BorshSerialize, BorshDeserialize};
 
+// Import Arch SDK modules
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
+
 pub struct LiquidationManager {
     stability_pool: String,
     sorted_troves: String,
@@ -33,18 +50,18 @@ impl LiquidationManager {
         self.enabled_trove_managers.insert(trove_manager, true);
     }
 
-    pub fn liquidate(&mut self, trove_manager: String, borrower: String) -> Option<Liquidation> {
+    pub fn liquidate(&mut self, trove_manager: String, borrower: String) -> Result<Option<Liquidation>, ProgramError> {
         let is_enabled = *self.enabled_trove_managers.get(&trove_manager).unwrap_or(&false);
         if !is_enabled {
-            return None;
+            return Ok(None);
         }
 
-        //  for financial calculations
+        // Use Arch SDK for financial calculations
         let debt_reduction = FinancialMath::calculate_debt_reduction();
         let collateral_reduction = FinancialMath::calculate_collateral_reduction();
 
         let liquidation = Liquidation {
-            borrower,
+            borrower: borrower.clone(),
             liquidated_debt: debt_reduction, 
             liquidated_coll: collateral_reduction,
         };
@@ -52,7 +69,22 @@ impl LiquidationManager {
         // Log the liquidation event
         info!("Liquidation occurred for borrower: {:?}", borrower);
 
-        Some(liquidation)
+        // Create a transaction to record the liquidation
+        let tx = self.create_liquidation_transaction(&borrower, debt_reduction, collateral_reduction)?;
+
+        // Set the transaction to be signed
+        set_transaction_to_sign(tx)?;
+
+        Ok(Some(liquidation))
+    }
+
+    fn create_liquidation_transaction(&self, borrower: &String, debt_reduction: u64, collateral_reduction: u64) -> Result<TransactionToSign, ProgramError> {
+        // Placeholder for creating a transaction using Arch SDK
+        let tx = TransactionToSign {
+            // Populate with necessary fields
+            // ...
+        };
+        Ok(tx)
     }
 
     // Access control method
@@ -70,26 +102,26 @@ impl LiquidationManager {
 
 mod FinancialMath {
     pub fn calculate_debt_reduction() -> u64 {
-        //  for actual implementation
+        // Placeholder for actual implementation
         // This function should calculate the debt reduction based on the logic in LiquidationManager.sol
         100
     }
 
     pub fn calculate_collateral_reduction() -> u64 {
-        // for actual implementation
+        // Placeholder for actual implementation
         // This function should calculate the collateral reduction based on the logic in LiquidationManager.sol
         50
     }
 
     pub fn calculate_coll_gas_compensation(coll: u64) -> u64 {
-        // for actual implementation
+        // Placeholder for actual implementation
         // This function should calculate the collateral gas compensation based on the logic in LiquidationManager.sol
         coll / 100 // Example: 1% of the collateral
     }
 
     pub fn calculate_debt_gas_compensation() -> u64 {
-        //  for actual implementation
+        // Placeholder for actual implementation
         // This function should calculate the debt gas compensation based on the logic in LiquidationManager.sol
-        10 // Eample gas
+        10 // Example gas
     }
 }

@@ -2,6 +2,23 @@ use std::collections::HashMap;
 use borsh::{BorshDeserialize, BorshSerialize};
 use crate::interfaces::trove_manager::TroveManager;
 
+// Arch SDK imports
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Node {
     exists: bool,
@@ -101,30 +118,6 @@ impl SortedTroves {
         self.insert(id, new_nicr, new_prev_id, new_next_id);
     }
 
-    // Additional methods for NICR-based sorting
-    fn valid_insert_position(&self, nicr: u256, prev_id: Option<u32>, next_id: Option<u32>) -> bool {
-        if let Some(prev_id) = prev_id {
-            if let Some(prev_node) = self.nodes.get(&prev_id) {
-                if prev_node.nicr > nicr {
-                    return false;
-                }
-            } else {
-                return false; // prev_id does not exist
-            }
-        }
-
-        if let Some(next_id) = next_id {
-            if let Some(next_node) = self.nodes.get(&next_id) {
-                if next_node.nicr < nicr {
-                    return false;
-                }
-            } else {
-                return false; // next_id does not exist
-            }
-        }
-
-        true
-    }
     // Additional methods for NICR-based sorting
     fn valid_insert_position(&self, nicr: u256, prev_id: Option<u32>, next_id: Option<u32>) -> bool {
         if let Some(prev_id) = prev_id {

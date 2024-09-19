@@ -3,6 +3,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use borsh::{BorshDeserialize, BorshSerialize};
 use borsh::maybestd::io::{Error, ErrorKind};
 
+// Arch SDK imports
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
+
 // Assuming a simplified interface for AggregatorV3Interface
 trait AggregatorV3Interface {
     fn latest_round_data(&self) -> (u64, i128, u32, u32, u32);
@@ -31,11 +48,11 @@ pub struct PriceRecord {
 pub struct PriceFeed {
     oracle_records: HashMap<String, OracleRecord>,
     price_records: HashMap<String, PriceRecord>,
-    owner: String, // Changed to String for simplicity
+    owner: Pubkey, // Changed to Pubkey for compatibility with Arch SDK
 }
 
 impl PriceFeed {
-    pub fn new(owner: String) -> Self {
+    pub fn new(owner: Pubkey) -> Self {
         Self {
             oracle_records: HashMap::new(),
             price_records: HashMap::new(),
@@ -116,6 +133,6 @@ impl PriceFeed {
     }
 
     fn only_owner(&self) {
-        assert_eq!(self.owner, "ExpectedOwner", "Only owner can call this function");
+        assert_eq!(self.owner, Pubkey::new_unique(), "Only owner can call this function");
     }
 }

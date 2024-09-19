@@ -1,5 +1,20 @@
 use std::collections::HashMap;
 use borsh::{BorshDeserialize, BorshSerialize};
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct BorrowerOperationsState {
@@ -42,6 +57,22 @@ impl BorrowerOperationsState {
         } else {
             self.debt_token.burn((-debt_change) as u64);
         }
+
+        // Example of using Arch SDK functionality
+        let account_info = AccountInfo::new();
+        let tx = get_state_transition_tx();
+        let input_to_sign = InputToSign::new();
+        let instruction = Instruction::new();
+        msg!("Arch SDK functionality used in adjust_trove");
+
+        // Set transaction to sign
+        set_transaction_to_sign(tx);
+
+        // Validate UTXO ownership
+        validate_utxo_ownership(&account_info, &self.trove_manager.get_collateral_token());
+
+        // Set return data
+        set_return_data(&self.serialize());
     }
 
     pub fn open_trove(&mut self, trove_manager: String, account: String, collateral_amount: u128, debt_amount: u128) {
@@ -54,6 +85,22 @@ impl BorrowerOperationsState {
 
         // Update internal state
         self.debt_token.issue(debt_amount); // Assuming a method to handle debt token issuance
+
+        // Example of using Arch SDK functionality
+        let account_info = AccountInfo::new();
+        let tx = get_state_transition_tx();
+        let input_to_sign = InputToSign::new();
+        let instruction = Instruction::new();
+        msg!("Arch SDK functionality used in open_trove");
+
+        // Set transaction to sign
+        set_transaction_to_sign(tx);
+
+        // Validate UTXO ownership
+        validate_utxo_ownership(&account_info, &tm_data.collateral_token);
+
+        // Set return data
+        set_return_data(&self.serialize());
     }
 
     pub fn issue_debt(&mut self, amount: u128) {

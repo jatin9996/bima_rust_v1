@@ -3,14 +3,31 @@
 use core::collections::BTreeMap;
 use borsh::{BorshDeserialize, BorshSerialize};
 
+// Import Arch SDK modules
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
+
 const MAX_POINTS: u16 = 10000;
 const MAX_LOCK_WEEKS: u8 = 52;
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct IncentiveVoting {
-    token_locker: AccountId,
-    vault: AccountId,
-    account_lock_data: BTreeMap<AccountId, AccountData>,
+    token_locker: Pubkey,
+    vault: Pubkey,
+    account_lock_data: BTreeMap<Pubkey, AccountData>,
     receiver_count: u128,
     receiver_decay_rate: Vec<u32>,
     receiver_updated_week: Vec<u16>,
@@ -20,7 +37,7 @@ pub struct IncentiveVoting {
     total_updated_week: u16,
     total_weekly_weights: Vec<u64>,
     total_weekly_unlocks: Vec<u32>,
-    delegated_ops: AccountId,
+    delegated_ops: Pubkey,
     system_start: u64,
 }
 
@@ -46,23 +63,23 @@ pub struct Vote {
 #[derive(BorshSerialize, BorshDeserialize)]
 pub enum Event {
     AccountWeightRegistered {
-        account: AccountId,
+        account: Pubkey,
         week: u16,
         frozen_weight: u64,
         lock_data: Vec<LockData>,
     },
     VotesUpdated {
-        account: AccountId,
+        account: Pubkey,
         week: u16,
         votes: Vec<Vote>,
         points: u16,
     },
     ClearedVotes {
-        account: AccountId,
+        account: Pubkey,
         week: u16,
     },
     AccountVotesStored {
-        account: AccountId,
+        account: Pubkey,
         votes: Vec<Vote>,
         points: u16,
     },
@@ -75,7 +92,7 @@ pub struct LockData {
 }
 
 impl IncentiveVoting {
-    pub fn new(token_locker: AccountId, vault: AccountId, delegated_ops: AccountId, system_start: u64) -> Self {
+    pub fn new(token_locker: Pubkey, vault: Pubkey, delegated_ops: Pubkey, system_start: u64) -> Self {
         Self {
             token_locker,
             vault,
@@ -94,7 +111,7 @@ impl IncentiveVoting {
         }
     }
 
-    pub fn register_account_weight(&mut self, account: AccountId, min_weeks: u64) {
+    pub fn register_account_weight(&mut self, account: Pubkey, min_weeks: u64) {
         // Ensure caller or delegated
         // Get lock data
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
@@ -117,7 +134,7 @@ impl IncentiveVoting {
         // Emit event
     }
 
-    pub fn vote(&mut self, account: AccountId, votes: Vec<Vote>, clear_previous: bool) {
+    pub fn vote(&mut self, account: Pubkey, votes: Vec<Vote>, clear_previous: bool) {
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
         let frozen_weight = account_data.frozen_weight;
         assert!(frozen_weight > 0 || account_data.lock_length > 0, "No registered weight");
@@ -141,7 +158,7 @@ impl IncentiveVoting {
         // Emit event
     }
 
-    fn register_account_weight_internal(&mut self, account: AccountId, min_weeks: u64) -> u64 {
+    fn register_account_weight_internal(&mut self, account: Pubkey, min_weeks: u64) -> u64 {
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
 
         // Get updated account lock weights and store locally
@@ -173,7 +190,7 @@ impl IncentiveVoting {
         account_data.frozen_weight
     }
 
-    fn add_vote_weights(&mut self, account: AccountId, votes: &[Vote], frozen_weight: u64) {
+    fn add_vote_weights(&mut self, account: Pubkey, votes: &[Vote], frozen_weight: u64) {
         let current_week = self.get_week();
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
 
@@ -203,7 +220,7 @@ impl IncentiveVoting {
         });
     }
 
-    fn remove_vote_weights(&mut self, account: AccountId, votes: &[Vote], frozen_weight: u64) {
+    fn remove_vote_weights(&mut self, account: Pubkey, votes: &[Vote], frozen_weight: u64) {
         let current_week = self.get_week();
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
 
@@ -231,7 +248,7 @@ impl IncentiveVoting {
         });
     }
 
-    fn store_account_votes(&mut self, account: AccountId, account_data: &mut AccountData, votes: &[Vote], points: u16, offset: u16) {
+    fn store_account_votes(&mut self, account: Pubkey, account_data: &mut AccountData, votes: &[Vote], points: u16, offset: u16) {
         // Clear previous votes if offset is zero
         if offset == 0 {
             account_data.active_votes.clear();
@@ -258,7 +275,7 @@ impl IncentiveVoting {
         });
     }
 
-    fn get_account_current_votes(&self, account: AccountId) -> Vec<Vote> {
+    fn get_account_current_votes(&self, account: Pubkey) -> Vec<Vote> {
         if let Some(account_data) = self.account_lock_data.get(&account) {
             account_data.active_votes.iter().map(|(id, points)| Vote {
                 id: *id as u128,

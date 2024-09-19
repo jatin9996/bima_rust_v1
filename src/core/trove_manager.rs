@@ -62,13 +62,14 @@ impl TroveManager {
         }
     }
 
-    pub fn set_paused(&mut self, paused: bool) -> Result<(), String> {
+    pub fn set_paused(&mut self, paused: bool) -> Result<(), ProgramError> {
         let caller = self.get_caller();
         if self.owner == caller {
             self.paused = paused;
             Ok(())
         } else {
-            Err("Unauthorized: caller is not the owner".to_string())
+            msg!("Unauthorized: caller is not the owner");
+            Err(ProgramError::Custom(1)) // Custom error code for unauthorized access
         }
     }
 

@@ -5,6 +5,7 @@ use crate::interfaces::token_locker::{ITokenLocker, LockData};
 use crate::dependencies::babel_ownable::BabelOwnable;
 use borsh::{BorshDeserialize, BorshSerialize};
 
+
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct AllocationSplit {
     recipient: String,  // Using String to represent AccountId for simplicity

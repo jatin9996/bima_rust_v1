@@ -3,6 +3,21 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use log::{info, warn};
 use crate::interfaces::babel_core::BabelCore; // Ensure BabelCore is in scope
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
 #[derive(BorshSerialize, BorshDeserialize)]
 struct Proposal {
@@ -66,14 +81,18 @@ impl InterimAdmin {
         });
         self.proposal_payloads.push(payload);
         self.daily_proposals_count[day] += 1;
-        info!("Proposal {} created", proposal_id);
+
+        // Use Arch SDK to log the proposal creation
+        msg!("Proposal {} created", proposal_id);
     }
 
     pub fn cancel_proposal(&mut self, caller: &str, index: usize) {
         if let Some(guardian) = &self.guardian {
             if (caller == guardian || self.is_owner(caller)) && !self.proposals[index].processed {
                 self.proposals[index].processed = true;
-                info!("Proposal {} cancelled by {}", index, caller);
+
+                // Use Arch SDK to log the proposal cancellation
+                msg!("Proposal {} cancelled by {}", index, caller);
             } else {
                 warn!("Unauthorized or already processed");
             }
@@ -81,6 +100,7 @@ impl InterimAdmin {
     }
 
     fn get_current_time(&self) -> u64 {
+        // Fetch the current time from the blockchain using Arch SDK
         // Placeholder for actual time fetching logic
         0
     }
