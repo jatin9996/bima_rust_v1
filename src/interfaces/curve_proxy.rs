@@ -1,8 +1,11 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 pub struct GaugeWeightVote {
     pub gauge: String,
     pub weight: u128,
 }
 
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct TokenBalance {
     pub token: String,
     pub amount: u128,

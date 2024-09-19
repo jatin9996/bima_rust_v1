@@ -1,3 +1,13 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct StabilityPool {
+    // Define the fields that you want to serialize/deserialize
+    pub depositor: String,
+    pub collateral: Vec<u256>,
+    // Add other fields as necessary
+}
+
 pub trait IStabilityPool {
     /// Event triggered when collateral gains are withdrawn.
     fn collateral_gain_withdrawn(&self, depositor: &str, collateral: Vec<u256>);

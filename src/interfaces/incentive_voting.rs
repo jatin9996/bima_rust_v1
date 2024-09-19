@@ -1,11 +1,15 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
 pub trait IIncentiveVoting {
     /// Represents a vote with an ID and points.
+    #[derive(BorshSerialize, BorshDeserialize)]
     struct Vote {
         id: u256,
         points: u256,
     }
 
     /// Represents lock data with an amount and weeks to unlock.
+    #[derive(BorshSerialize, BorshDeserialize)]
     struct LockData {
         amount: u256,
         weeks_to_unlock: u256,

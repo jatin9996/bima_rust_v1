@@ -1,129 +1,164 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::maybestd::io::{Error, ErrorKind};
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
-use ink_lang as ink;
-use crate::utxo::UTXO;
-use ink_storage::collections::HashMap as StorageMap;
-use crate::utxo_module::UtxoContract;
+const OWNERSHIP_TRANSFER_DELAY: u64 = 86400 * 3; // 3 days
 
-#[ink::contract]
-mod bable_core {
-    use ink_storage::collections::HashMap;
-    use ink_prelude::string::String;
-    use ink_env::block_timestamp;
+#[derive(Clone, BorshSerialize, BorshDeserialize)]
+pub struct UTXO {
+    pub txid: Vec<u8>,
+    pub vout: u32,
+    pub value: u64,
+}
 
-    const OWNERSHIP_TRANSFER_DELAY: u64 = 86400 * 3; // 3 days
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct BabelCore {
+    utxos: HashMap<(Vec<u8>, u32), UTXO>,
+    fee_receiver: String,
+    price_feed: String,
+    owner: String,
+    pending_owner: Option<String>,
+    ownership_transfer_deadline: Option<u64>,
+    guardian: String,
+    paused: bool,
+    start_time: u64,
+}
 
-    #[ink(storage)]
-    pub struct BabelCore {
-        utxos: StorageMap<(Vec<u8>, u32), UTXO>,
-        fee_receiver: String,
-        price_feed: String,
-        owner: String,
-        pending_owner: Option<String>,
-        ownership_transfer_deadline: Option<u64>,
-        guardian: String,
-        paused: bool,
-        start_time: u64,
+impl BabelCore {
+    pub fn new(owner: String, guardian: String, price_feed: String, fee_receiver: String) -> Self {
+        let start_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        Self {
+            utxos: HashMap::default(),
+            fee_receiver,
+            price_feed,
+            owner,
+            pending_owner: None,
+            ownership_transfer_deadline: None,
+            guardian,
+            paused: false,
+            start_time: start_time - (start_time % (7 * 86400)), // Rounded down to the nearest week
+        }
     }
 
-    impl BabelCore {
-        #[ink(constructor)]
-        pub fn new(owner: String, guardian: String, price_feed: String, fee_receiver: String) -> Self {
-            let start_time = Self::env().block_timestamp() / 1000; // Convert to seconds
-            Self {
-                utxos: StorageMap::default(),
-                fee_receiver,
-                price_feed,
-                owner,
-                pending_owner: None,
-                ownership_transfer_deadline: None,
-                guardian,
-                paused: false,
-                start_time: start_time - (start_time % (7 * 86400)), // Rounded down to the nearest week
-            }
-        }
+    pub fn set_fee_receiver(&mut self, new_fee_receiver: String) {
+        self.fee_receiver = new_fee_receiver;
+    }
 
-        #[ink(message)]
-        pub fn set_fee_receiver(&mut self, new_fee_receiver: String) {
-            self.fee_receiver = new_fee_receiver;
-        }
+    pub fn set_price_feed(&mut self, new_price_feed: String) {
+        self.price_feed = new_price_feed;
+    }
 
-        #[ink(message)]
-        pub fn set_price_feed(&mut self, new_price_feed: String) {
-            self.price_feed = new_price_feed;
-        }
+    pub fn set_guardian(&mut self, new_guardian: String) {
+        self.guardian = new_guardian;
+    }
 
-        #[ink(message)]
-        pub fn set_guardian(&mut self, new_guardian: String) {
-            self.guardian = new_guardian;
+    pub fn set_paused(&mut self, new_paused: bool) -> Result<(), ProgramError> {
+        if new_paused && self.guardian != self.owner {
+            return Err(ProgramError::Unauthorized);
         }
+        self.paused = new_paused;
+        Ok(())
+    }
 
-        #[ink(message)]
-        pub fn set_paused(&mut self, new_paused: bool) {
-            if new_paused && self.guardian != self.owner {
-                panic!("Unauthorized");
-            }
-            self.paused = new_paused;
+    pub fn commit_transfer_ownership(&mut self, caller: String, new_owner: String, accounts: &[AccountInfo]) -> Result<(), ProgramError> {
+        if self.is_owner(&caller) {
+            self.pending_owner = Some(new_owner.clone());
+            self.ownership_transfer_deadline = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + OWNERSHIP_TRANSFER_DELAY);
+            msg!("Ownership transfer committed to {} with deadline {}", new_owner, self.ownership_transfer_deadline.unwrap());
+
+            // Set transaction to sign using Arch SDK
+            set_transaction_to_sign(accounts)?;
+
+            Ok(())
+        } else {
+            Err(ProgramError::Unauthorized)
         }
+    }
 
-        #[ink(message)]
-        pub fn commit_transfer_ownership(&mut self, new_owner: String) {
-            self.pending_owner = Some(new_owner);
-            self.ownership_transfer_deadline = Some(Self::env().block_timestamp() / 1000 + OWNERSHIP_TRANSFER_DELAY);
-        }
-
-        #[ink(message)]
-        pub fn accept_transfer_ownership(&mut self) {
-            if let Some(pending_owner) = &self.pending_owner {
-                if Self::env().block_timestamp() / 1000 >= self.ownership_transfer_deadline.unwrap() {
-                    self.owner = pending_owner.clone();
-                    self.pending_owner = None;
-                    self.ownership_transfer_deadline = None;
-                } else {
-                    panic!("Deadline not passed");
-                }
+    pub fn accept_transfer_ownership(&mut self, caller: String) -> Result<(), ProgramError> {
+        if let Some(ref pending_owner) = self.pending_owner {
+            if caller == *pending_owner && SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() >= self.ownership_transfer_deadline.unwrap() {
+                msg!("Ownership transferred from {} to {}", self.owner, pending_owner);
+                self.owner = pending_owner.clone();
+                self.pending_owner = None;
+                self.ownership_transfer_deadline = None;
+                Ok(())
             } else {
-                panic!("No pending owner");
+                Err(ProgramError::Unauthorized)
             }
+        } else {
+            Err(ProgramError::InvalidArgument)
+        }
+    }
+
+    pub fn revoke_transfer_ownership(&mut self) {
+        self.pending_owner = None;
+        self.ownership_transfer_deadline = None;
+    }
+
+    pub fn transfer_utxo(&mut self, input_utxos: Vec<(Vec<u8>, u32)>, output_utxos: Vec<UTXO>) {
+        let mut input_value = 0;
+        for (txid, vout) in input_utxos.iter() {
+            let utxo = self.utxos.get(&(*txid, *vout)).expect("UTXO not found");
+            input_value += utxo.value;
+            self.utxos.remove(&(*txid, *vout));
         }
 
-        #[ink(message)]
-        pub fn revoke_transfer_ownership(&mut self) {
-            self.pending_owner = None;
-            self.ownership_transfer_deadline = None;
+        let mut output_value = 0;
+        for utxo in output_utxos.iter() {
+            output_value += utxo.value;
+            let txid = utxo.txid.clone();
+            let vout = utxo.vout;
+            self.utxos.insert((txid, vout), utxo.clone());
         }
 
-        //  method adjustment for transferring using UTXOs
-        #[ink(message)]
-        pub fn transfer_utxo(&mut self, input_utxos: Vec<(Vec<u8>, u32)>, output_utxos: Vec<UTXO>) {
-            // Validate that all input UTXOs are unspent and collect their total value
-            let mut input_value = 0;
-            for (txid, vout) in input_utxos.iter() {
-                let utxo = self.utxos.get(&(*txid, *vout)).expect("UTXO not found");
-                input_value += utxo.value;
-                // Mark UTXO as spent by removing it
-                self.utxos.take(&(*txid, *vout));
-            }
-
-            // Validate and create new UTXOs
-            let mut output_value = 0;
-            for utxo in output_utxos.iter() {
-                output_value += utxo.value;
-                let txid = utxo.txid.clone(); // Assume txid is generated elsewhere
-                let vout = utxo.vout;
-                self.utxos.insert((txid, vout), utxo.clone());
-            }
-
-            // Ensure no value is created or destroyed
-            if input_value != output_value {
-                panic!("Input and output values do not match");
-            }
+        if input_value != output_value {
+            panic!("Input and output values do not match");
         }
+    }
 
-        // Use UTXO methods for transactions
-        pub fn handle_utxo_transaction(&mut self, input_utxos: Vec<(Vec<u8>, u32)>, output_utxos: Vec<UTXO>) {
-            let mut utxo_contract = UtxoContract::new();
-            utxo_contract.transfer_utxo(input_utxos, output_utxos);
+    pub fn adjust_trove(&mut self, user: String, adjustment: i64) {
+        println!("Adjusting trove for user: {}, adjustment: {}", user, adjustment);
+    }
+
+    pub fn trigger_emergency(&mut self, caller: String) {
+        if caller == self.guardian {
+            self.paused = true;
+            println!("Emergency triggered, system paused by {}", caller);
+        } else {
+            panic!("Unauthorized attempt to trigger emergency by {}", caller);
         }
+    }
+
+    pub fn admin_vote(&mut self, proposal_id: u32, vote: bool) {
+        println!("Admin voting on proposal: {}, vote: {}", proposal_id, vote);
+    }
+
+    fn is_owner(&self, caller: &String) -> bool {
+        &self.owner == caller
+    }
+
+    pub fn serialize(&self) -> Result<Vec<u8>, Error> {
+        self.try_to_vec().map_err(|e| Error::new(ErrorKind::Other, e))
+    }
+
+    pub fn deserialize(data: &[u8]) -> Result<Self, Error> {
+        Self::try_from_slice(data).map_err(|e| Error::new(ErrorKind::Other, e))
     }
 }

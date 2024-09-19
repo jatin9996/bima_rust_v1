@@ -1,3 +1,14 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct RoundData {
+    pub round_id: u128,
+    pub answer: i128,
+    pub started_at: u128,
+    pub updated_at: u128,
+    pub answered_in_round: u128,
+}
+
 pub trait AggregatorV3Interface {
     fn decimals(&self) -> u8;
 
@@ -12,9 +23,9 @@ pub trait AggregatorV3Interface {
     fn get_round_data(
         &self,
         round_id: u128,
-    ) -> (u128, i128, u128, u128, u128);
+    ) -> RoundData;
 
     fn latest_round_data(
         &self,
-    ) -> (u128, i128, u128, u128, u128);
+    ) -> RoundData;
 }

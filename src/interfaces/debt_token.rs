@@ -1,3 +1,6 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct DebtToken {
     total_supply: u64,
 }

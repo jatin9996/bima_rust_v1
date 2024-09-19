@@ -1,3 +1,12 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct LiquidityGauge {
+    // Define the fields that need to be serialized/deserialized
+    lp_token_address: String,
+    // Add other fields as necessary
+}
+
 pub trait ILiquidityGauge {
     /// Deposits `amount` of liquidity into the gauge for the specified `receiver`.
     fn deposit(&self, amount: u256, receiver: &str);

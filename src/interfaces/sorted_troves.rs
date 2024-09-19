@@ -1,3 +1,13 @@
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(BorshSerialize, BorshDeserialize)]
+pub struct SortedTrove {
+    id: String,
+    nicr: u256,
+    prev_id: String,
+    next_id: String,
+}
+
 pub trait ISortedTroves {
     /// Event triggered when a node is added.
     fn node_added(&self, id: &str, nicr: u256);

@@ -1,4 +1,6 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+use borsh::{BorshDeserialize, BorshSerialize};
+
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct InitialAllowance {
     pub receiver: String, 
     pub amount: u256,
@@ -69,7 +71,7 @@ pub trait IBabelVault {
         boost_delegate: String,
         reward_contract: String
     ) -> Result<(u256, u256), String>;
-    
+  
     fn emission_schedule(&self) -> Result<String, String>;
     
     fn get_claimable_with_boost(&self, claimant: String) -> Result<(u256, u256), String>;
