@@ -2,6 +2,24 @@
 
 use core::collections::BTreeMap;
 use borsh::{BorshDeserialize, BorshSerialize};
+use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struct
+use archnetwork::transaction_to_sign::TransactionToSign; // Import TransactionToSign
+
+// Import Arch SDK modules
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey, // Ensure correct Pubkey type is used
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::{UtxoMeta, OutPoint},
+};
 
 // Import Arch SDK modules
 use arch_program::{
@@ -39,6 +57,8 @@ pub struct IncentiveVoting {
     total_weekly_unlocks: Vec<u32>,
     delegated_ops: Pubkey,
     system_start: u64,
+    bitcoin_transactions: Vec<Transaction>,
+    utxo_set: BTreeMap<OutPoint, UtxoMeta>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -108,6 +128,8 @@ impl IncentiveVoting {
             total_weekly_unlocks: vec![0; 65535],
             delegated_ops,
             system_start,
+            bitcoin_transactions: vec![],
+            utxo_set: BTreeMap::new(),
         }
     }
 
@@ -131,7 +153,20 @@ impl IncentiveVoting {
 
         // Resubmit the account's active vote using the newly registered weights
         self.add_vote_weights(account, &existing_votes, frozen_weight);
+
         // Emit event
+        let script_pubkey = get_account_script_pubkey(&account);
+        msg!("script_pubkey {:?}", script_pubkey);
+
+        // Create state transition transaction
+        let mut tx = get_state_transition_tx(&[account]);
+        tx.input.push(InputToSign {
+            index: 0,
+            signer: account.key.clone(),
+        });
+
+        // Log the transaction to sign
+        msg!("State transition transaction: {:?}", tx);
     }
 
     pub fn vote(&mut self, account: Pubkey, votes: Vec<Vote>, clear_previous: bool) {
@@ -156,6 +191,16 @@ impl IncentiveVoting {
         // Store the new account votes
         self.store_account_votes(account, account_data, &votes, points, offset);
         // Emit event
+
+        // Create state transition transaction
+        let mut tx = get_state_transition_tx(&[account]);
+        tx.input.push(InputToSign {
+            index: 0,
+            signer: account.key.clone(),
+        });
+
+        // Log the transaction to sign
+        msg!("State transition transaction: {:?}", tx);
     }
 
     fn register_account_weight_internal(&mut self, account: Pubkey, min_weeks: u64) -> u64 {
@@ -292,5 +337,58 @@ impl IncentiveVoting {
 
     pub fn deserialize(data: &[u8]) -> Self {
         Self::try_from_slice(data).expect("Deserialization should not fail")
+    }
+
+    // Add a method to handle Bitcoin transactions and manage UTXOs
+    pub fn handle_bitcoin_transaction(&mut self, tx: Transaction) {
+        // Create a transaction to sign
+        let tx_bytes = tx.serialize(); // Serialize the transaction to bytes
+        let inputs_to_sign = vec![]; // Populate with actual inputs that need to be signed
+
+        let transaction = TransactionToSign::new(tx_bytes, inputs_to_sign);
+
+        // Simulate signing the transaction
+        self.sign_transaction(&transaction);
+
+        // Process the Bitcoin transaction
+        self.bitcoin_transactions.push(tx.clone());
+
+        // Add UTXOs from the transaction to the UTXO set
+        for (vout, output) in tx.output.iter().enumerate() {
+            let outpoint = OutPoint::new(tx.txid(), vout as u32);
+            let utxo_meta = UtxoMeta {
+                txid: tx.txid(),
+                vout: vout as u32,
+                amount: output.value,
+                script_pubkey: output.script_pubkey.clone(),
+            };
+            self.utxo_set.insert(outpoint, utxo_meta);
+        }
+
+        // Example of using get_bitcoin_tx
+        let bitcoin_tx = get_bitcoin_tx(&tx.txid());
+        msg!("Retrieved Bitcoin transaction: {:?}", bitcoin_tx);
+    }
+
+    // Add a method to spend UTXOs
+    pub fn spend_utxo(&mut self, outpoint: OutPoint) -> Result<(), ProgramError> {
+        if self.utxo_set.remove(&outpoint).is_none() {
+            return Err(ProgramError::Custom(502)); // UTXO not found
+        }
+        Ok(())
+    }
+
+    // Add a method to validate UTXOs
+    pub fn validate_utxo(&self, outpoint: &OutPoint) -> Result<(), ProgramError> {
+        if self.utxo_set.contains_key(outpoint) {
+            Ok(())
+        } else {
+            Err(ProgramError::Custom(503)) // UTXO not valid
+        }
+    }
+
+    fn sign_transaction(&self, transaction: &TransactionToSign) {
+        // Simulate signing the transaction
+        println!("Signing transaction with inputs: {:?}", transaction.inputs_to_sign);
     }
 }

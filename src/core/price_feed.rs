@@ -2,6 +2,23 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use borsh::{BorshDeserialize, BorshSerialize};
 use borsh::maybestd::io::{Error, ErrorKind};
+use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struct
+
+// Arch SDK imports
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+};
 
 // Arch SDK imports
 use arch_program::{
@@ -111,6 +128,15 @@ impl PriceFeed {
             scaled_price = (scaled_price * eth_price) / 1_000_000_000_000_000_000u128;
         }
 
+        // Validate UTXO ownership before proceeding
+        let utxo_meta = UtxoMeta {
+            txid: fees_tx.txid(),
+            vout: 0,
+            amount: 0, // Placeholder, replace with actual amount
+            script_pubkey: get_account_script_pubkey(account.key),
+        };
+        validate_utxo_ownership(&utxo_meta)?;
+
         self.store_price(token, scaled_price, timestamp, round_id);
         Some(scaled_price)
     }
@@ -121,6 +147,38 @@ impl PriceFeed {
     }
 
     fn store_price(&mut self, token: &str, price: u128, timestamp: u32, round_id: u64) {
+        // Create a state transition transaction using Arch SDK
+        let mut tx = get_state_transition_tx(&[]);
+
+        // Add necessary inputs to the transaction
+        let inputs_to_sign = vec![InputToSign {
+            index: 0,
+            signer: self.owner,
+        }];
+
+        let tx_to_sign = TransactionToSign {
+            tx_bytes: &bitcoin::consensus::serialize(&tx),
+            inputs_to_sign: &inputs_to_sign,
+        };
+
+        // Add UTXO metadata to the transaction
+        let utxo_meta = UtxoMeta {
+            txid: tx.input[0].previous_output.txid,
+            vout: tx.input[0].previous_output.vout,
+            amount: 0, // Placeholder, replace with actual amount
+            script_pubkey: get_account_script_pubkey(&self.owner),
+        };
+
+        // Ensure the transaction is signed by the owner
+        self.only_owner();
+
+        // Set the transaction to sign using Arch SDK
+        set_transaction_to_sign(&[], tx_to_sign);
+
+        // Log the transaction details
+        msg!("Transaction to sign: {:?}", tx_to_sign);
+
+        // Store the price record
         self.price_records.insert(
             token.to_string(),
             PriceRecord {
@@ -132,7 +190,41 @@ impl PriceFeed {
         );
     }
 
+    fn create_transaction_bytes(&self, token: &str, price: u128, timestamp: u32, round_id: u64) -> Vec<u8> {
+        // Create a simple transaction structure
+        let mut tx = Transaction {
+            version: 1,
+            lock_time: 0,
+            input: vec![],
+            output: vec![],
+        };
+
+        // Add a  input (in a real scenario, this would be a valid UTXO)
+        tx.input.push(bitcoin::TxIn {
+            previous_output: bitcoin::OutPoint::null(),
+            script_sig: bitcoin::Script::new(),
+            sequence: 0xFFFFFFFF,
+            witness: vec![],
+        });
+
+        // Add an output with the price data encoded in the script
+        let script_data = format!("{}:{}:{}:{}", token, price, timestamp, round_id);
+        tx.output.push(bitcoin::TxOut {
+            value: 0, // No value transfer, just data
+            script_pubkey: bitcoin::Script::new_p2pkh(&bitcoin::Address::p2pkh(
+                &bitcoin::PublicKey::from_slice(&[0u8; 33]).unwrap(),
+                bitcoin::Network::Bitcoin,
+            ).script_pubkey().into_bytes()),
+        });
+
+        // Serialize the transaction to bytes
+        let mut tx_bytes = vec![];
+        tx.consensus_encode(&mut tx_bytes).unwrap();
+        tx_bytes
+    }
+
     fn only_owner(&self) {
+
         assert_eq!(self.owner, Pubkey::new_unique(), "Only owner can call this function");
     }
 }

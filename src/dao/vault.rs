@@ -58,21 +58,47 @@ impl Vault {
         }
     }
 
-    pub fn set_weekly_emission(&mut self, week: u64, amount: u128) {
+    pub fn set_weekly_emission(&mut self, week: u64, amount: u128, utxo_meta: UtxoMeta) {
         let total_emissions = self.get_total_weekly_emissions(week); 
         self.weekly_emissions.insert(week, total_emissions);
         self.unallocated_total -= total_emissions;
-        self.lock_tokens(amount, 52); // Lock for 1 year
+        self.lock_tokens(amount, 52, utxo_meta); // Lock for 1 year
     }
 
-    pub fn transfer_tokens(&mut self, receiver: String, amount: u128) {
+    pub fn transfer_tokens(&mut self, receiver: String, amount: u128, utxo_meta: UtxoMeta) {
         if self.unallocated_total >= amount {
-            // Transfer logic here
             self.unallocated_total -= amount;
+
+            let receiver_pubkey = Pubkey::new(&receiver.as_bytes());
+            let tx = get_bitcoin_tx(&self.babel_token, &receiver_pubkey, amount);
+
+            // Validate UTXO ownership
+            validate_utxo_ownership(&utxo_meta).expect("UTXO ownership validation failed");
+
+            // Create a transaction to sign
+            let tx_bytes = bitcoin::consensus::serialize(&tx); // Adjusted for Arch Network
+            let inputs_to_sign = vec![InputToSign {
+                index: utxo_meta.index, // Use UTXO index
+                signer: receiver_pubkey,
+            }];
+            let transaction = TransactionToSign {
+                tx_bytes,
+                inputs_to_sign,
+            };
+
+            // Log the transaction to sign
+            msg!("Transaction to sign: {:?}", transaction);
+
+            // Sign the transaction
+            self.sign_transaction(&transaction);
+
+            // Invoke the signed transaction
+            invoke(&tx, &[]).expect("Failed to invoke transaction"); // Adjusted for Arch Network
             // Use Arch SDK to transfer tokens
             let receiver_pubkey = Pubkey::new(&receiver.as_bytes());
             let tx = get_bitcoin_tx(&self.babel_token, &receiver_pubkey, amount);
             invoke(&tx);
+
         } else {
             panic!("Insufficient unallocated tokens for transfer");
         }
@@ -80,20 +106,69 @@ impl Vault {
 
     pub fn increase_unallocated_supply(&mut self, amount: u128) {
         self.unallocated_total += amount;
+
+        let tx = get_state_transition_tx(&self.babel_token, amount);
+
+        // Create a transaction to sign
+        let tx_bytes = bitcoin::consensus::serialize(&tx); // Adjusted for Arch Network
+        let inputs_to_sign = vec![]; // Example input, adjust as needed
+        let transaction = TransactionToSign {
+            tx_bytes,
+            inputs_to_sign,
+        };
+
+        // Log the transaction to sign
+        msg!("Transaction to sign: {:?}", transaction);
+
+        // Sign the transaction
+        self.sign_transaction(&transaction);
+
+        // Invoke the signed transaction
+        invoke(&tx, &[]).expect("Failed to invoke transaction"); // Adjusted for Arch Network
+
         // Use Arch SDK to increase allowance
         let tx = get_state_transition_tx(&self.babel_token, amount);
         invoke(&tx);
     }
 
-    fn get_total_weekly_emissions(&self, week: u64) -> u128 {
-        // Calculation logic here
-        1000 // Dummy value
+    fn lock_tokens(&self, amount: u128, duration: u64, utxo_meta: UtxoMeta) {
+        let tx = get_state_transition_tx(&self.token_locker, amount);
+
+        // Validate UTXO ownership
+        validate_utxo_ownership(&utxo_meta).expect("UTXO ownership validation failed");
+
+        // Create a transaction to sign
+        let tx_bytes = bitcoin::consensus::serialize(&tx); // Adjusted for Arch Network
+        let inputs_to_sign = vec![InputToSign {
+            index: utxo_meta.index, // Use UTXO index
+            signer: Pubkey::new(&self.token_locker.as_bytes()),
+        }];
+        let transaction = TransactionToSign {
+            tx_bytes,
+            inputs_to_sign,
+        };
+
+        // Log the transaction to sign
+        msg!("Transaction to sign: {:?}", transaction);
+
+        // Sign the transaction
+        self.sign_transaction(&transaction);
+
+        // Invoke the signed transaction
+        invoke(&tx, &[]).expect("Failed to invoke transaction"); // Adjusted for Arch Network
     }
 
+
+    fn sign_transaction(&self, transaction: &TransactionToSign) {
+        // Simulate signing the transaction
+        println!("Signing transaction with inputs: {:?}", transaction.inputs_to_sign);
+        // Add actual signing logic here
+=======
     fn lock_tokens(&self, amount: u128, duration: u64) {
         // Use Arch SDK to lock tokens
         let tx = get_state_transition_tx(&self.token_locker, amount);
         invoke(&tx);
+
     }
 
     pub fn register_receiver(&mut self, id: u64, account: String) -> bool {
@@ -140,7 +215,9 @@ impl Vault {
             // If no lock duration is specified, transfer the tokens directly
             let receiver_pubkey = Pubkey::new(&receiver.as_bytes());
             let tx = get_bitcoin_tx(&self.babel_token, &receiver_pubkey, amount);
-            invoke(&tx);
+
+            invoke(&tx, &[]).expect("Failed to invoke transaction"); // Adjusted for Arch Network=
+            
         } else {
             // Calculate the amount to lock based on the lock-to-token ratio
             let lock_amount = amount / self.lock_to_token_ratio;
@@ -151,7 +228,10 @@ impl Vault {
             if lock_amount > 0 {
                 // Lock the calculated amount for the specified duration
                 let tx = get_state_transition_tx(&self.token_locker, lock_amount);
-                invoke(&tx);
+
+                invoke(&tx, &[]).expect("Failed to invoke transaction"); // Adjusted for Arch Network
+
+          
             }
         }
     }
@@ -224,7 +304,9 @@ impl Vault {
                 // Transfer the tokens to the receiver
                 let receiver_pubkey = Pubkey::new(&receiver.as_bytes());
                 let tx = get_bitcoin_tx(&self.babel_token, &receiver_pubkey, amount);
-                invoke(&tx);
+
+                invoke(&tx, &[]).expect("Failed to invoke transaction"); // Adjusted for Arch Network
+
             } else {
                 // Handle the case where the allocated amount is insufficient
                 panic!("Insufficient allocated tokens for transfer");

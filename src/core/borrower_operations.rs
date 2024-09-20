@@ -8,13 +8,14 @@ use arch_program::{
     instruction::Instruction,
     msg,
     program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
-    program_error::ProgramError,
-    pubkey::Pubkey,
+    program_error::ProgramError
+    pubkey::Pubkey, // Ensure Pubkey is imported
     system_instruction::SystemInstruction,
     transaction_to_sign::TransactionToSign,
     utxo::UtxoMeta,
-    bitcoin::{self, Transaction},
 };
+use bitcoin::{self, Transaction}; // Importing bitcoin crate and Transaction struct
+  
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct BorrowerOperationsState {
@@ -65,14 +66,25 @@ impl BorrowerOperationsState {
         let instruction = Instruction::new();
         msg!("Arch SDK functionality used in adjust_trove");
 
+
+        // Construct TransactionToSign
+        let tx_bytes = tx.serialize();
+        let inputs_to_sign = vec![input_to_sign];
+        let transaction_to_sign = TransactionToSign::new(tx_bytes, inputs_to_sign);
+
         // Set transaction to sign
-        set_transaction_to_sign(tx);
+        set_transaction_to_sign(transaction_to_sign);
 
         // Validate UTXO ownership
         validate_utxo_ownership(&account_info, &self.trove_manager.get_collateral_token());
 
         // Set return data
         set_return_data(&self.serialize());
+
+
+        // Add UTXO management
+        let utxo_set = UtxoSet::new();
+        utxo_set.add_utxo(&tx, 0, coll_change as u64, account_info.key.to_string());
     }
 
     pub fn open_trove(&mut self, trove_manager: String, account: String, collateral_amount: u128, debt_amount: u128) {
@@ -93,14 +105,25 @@ impl BorrowerOperationsState {
         let instruction = Instruction::new();
         msg!("Arch SDK functionality used in open_trove");
 
+
+        // Construct TransactionToSign
+        let tx_bytes = tx.serialize();
+        let inputs_to_sign = vec![input_to_sign];
+        let transaction_to_sign = TransactionToSign::new(tx_bytes, inputs_to_sign);
+
         // Set transaction to sign
-        set_transaction_to_sign(tx);
+        set_transaction_to_sign(transaction_to_sign);
+        
 
         // Validate UTXO ownership
         validate_utxo_ownership(&account_info, &tm_data.collateral_token);
 
-        // Set return data
-        set_return_data(&self.serialize());
+      set_return_data(&self.serialize());
+
+        // Add UTXO management
+        let utxo_set = UtxoSet::new();
+        utxo_set.add_utxo(&tx, 0, collateral_amount as u64, account_info.key.to_string());
+
     }
 
     pub fn issue_debt(&mut self, amount: u128) {
@@ -153,4 +176,27 @@ struct LocalVariablesOpenTrove {
     nicr: u128,
     stake: u128,
     array_index: u128,
+}
+
+// Define UTXO structure
+pub struct UtxoSet {
+    pub utxos: HashMap<OutPoint, UtxoMeta>,
+}
+
+impl UtxoSet {
+    pub fn new() -> Self {
+        UtxoSet {
+            utxos: HashMap::new(),
+        }
+    }
+
+    pub fn add_utxo(&mut self, tx: &Transaction, vout: u32, value: u64, script_pubkey: Script) {
+        let outpoint = OutPoint::new(tx.txid(), vout);
+        let utxo = UtxoMeta::new(outpoint, value, script_pubkey);
+        self.utxos.insert(outpoint, utxo);
+    }
+
+    pub fn spend_utxo(&mut self, outpoint: OutPoint) {
+        self.utxos.remove(&outpoint);
+    }
 }

@@ -15,8 +15,8 @@ use arch_program::{
     system_instruction::SystemInstruction,
     transaction_to_sign::TransactionToSign,
     utxo::UtxoMeta,
-    bitcoin::{self, Transaction},
 };
+use bitcoin::{self, Transaction};
 
 const OWNERSHIP_TRANSFER_DELAY: u64 = 86400 * 3; // 3 days
 
@@ -25,6 +25,7 @@ pub struct UTXO {
     pub txid: Vec<u8>,
     pub vout: u32,
     pub value: u64,
+    pub script_pubkey: Vec<u8>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -32,16 +33,16 @@ pub struct BabelCore {
     utxos: HashMap<(Vec<u8>, u32), UTXO>,
     fee_receiver: String,
     price_feed: String,
-    owner: String,
-    pending_owner: Option<String>,
+    owner: Pubkey,
+    pending_owner: Option<Pubkey>,
     ownership_transfer_deadline: Option<u64>,
-    guardian: String,
+    guardian: Pubkey,
     paused: bool,
     start_time: u64,
 }
 
 impl BabelCore {
-    pub fn new(owner: String, guardian: String, price_feed: String, fee_receiver: String) -> Self {
+    pub fn new(owner: Pubkey, guardian: Pubkey, price_feed: String, fee_receiver: String) -> Self {
         let start_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         Self {
             utxos: HashMap::default(),
@@ -64,7 +65,7 @@ impl BabelCore {
         self.price_feed = new_price_feed;
     }
 
-    pub fn set_guardian(&mut self, new_guardian: String) {
+    pub fn set_guardian(&mut self, new_guardian: Pubkey) {
         self.guardian = new_guardian;
     }
 
@@ -76,13 +77,20 @@ impl BabelCore {
         Ok(())
     }
 
-    pub fn commit_transfer_ownership(&mut self, caller: String, new_owner: String, accounts: &[AccountInfo]) -> Result<(), ProgramError> {
+  
+    pub fn commit_transfer_ownership(&mut self, caller: String, new_owner: String, accounts: &[AccountInfo]) -> Result<(), ProgramError>{
         if self.is_owner(&caller) {
-            self.pending_owner = Some(new_owner.clone());
+            self.pending_owner = Some(new_owner);
             self.ownership_transfer_deadline = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + OWNERSHIP_TRANSFER_DELAY);
             msg!("Ownership transfer committed to {} with deadline {}", new_owner, self.ownership_transfer_deadline.unwrap());
 
-            // Set transaction to sign using Arch SDK
+            // Set transaction to sign using Arch
+            let tx_bytes = self.serialize()?; // Serialize the current state
+            let inputs_to_sign = vec![InputToSign::new(caller.to_string(), tx_bytes.clone())]; // Create inputs to sign
+            let transaction_to_sign = TransactionToSign::new(tx_bytes, inputs_to_sign); // Create the transaction to sign
+
+            set_transaction_to_sign(accounts, transaction_to_sign)?; // Set the transaction to sign
+
             set_transaction_to_sign(accounts)?;
 
             Ok(())
@@ -92,6 +100,7 @@ impl BabelCore {
     }
 
     pub fn accept_transfer_ownership(&mut self, caller: String) -> Result<(), ProgramError> {
+
         if let Some(ref pending_owner) = self.pending_owner {
             if caller == *pending_owner && SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() >= self.ownership_transfer_deadline.unwrap() {
                 msg!("Ownership transferred from {} to {}", self.owner, pending_owner);
@@ -112,7 +121,7 @@ impl BabelCore {
         self.ownership_transfer_deadline = None;
     }
 
-    pub fn transfer_utxo(&mut self, input_utxos: Vec<(Vec<u8>, u32)>, output_utxos: Vec<UTXO>) {
+    pub fn transfer_utxo(&mut self, input_utxos: Vec<(Vec<u8>, u32)>, output_utxos: Vec<UTXO>, accounts: &[AccountInfo]) -> Result<(), ProgramError> {
         let mut input_value = 0;
         for (txid, vout) in input_utxos.iter() {
             let utxo = self.utxos.get(&(*txid, *vout)).expect("UTXO not found");
@@ -129,15 +138,37 @@ impl BabelCore {
         }
 
         if input_value != output_value {
-            panic!("Input and output values do not match");
+            return Err(ProgramError::Custom(502)); // Custom error for value mismatch
         }
+
+        // Validate UTXO ownership
+        for (txid, vout) in input_utxos.iter() {
+            validate_utxo_ownership(accounts, txid, *vout)?;
+        }
+
+        // Create state transition transaction
+        let mut tx = get_state_transition_tx(accounts);
+        for (txid, vout) in input_utxos.iter() {
+            let utxo = self.utxos.get(&(*txid, *vout)).expect("UTXO not found");
+            tx.input.push(utxo.clone());
+        }
+
+        let tx_bytes = bitcoin::consensus::serialize(&tx);
+        let inputs_to_sign = input_utxos.iter().enumerate().map(|(i, (txid, vout))| {
+            InputToSign::new(i as u32, tx_bytes.clone())
+        }).collect::<Vec<_>>();
+
+        let transaction_to_sign = TransactionToSign::new(tx_bytes, inputs_to_sign);
+        set_transaction_to_sign(accounts, transaction_to_sign)?;
+
+        Ok(())
     }
 
     pub fn adjust_trove(&mut self, user: String, adjustment: i64) {
         println!("Adjusting trove for user: {}, adjustment: {}", user, adjustment);
     }
 
-    pub fn trigger_emergency(&mut self, caller: String) {
+    pub fn trigger_emergency(&mut self, caller: Pubkey) {
         if caller == self.guardian {
             self.paused = true;
             println!("Emergency triggered, system paused by {}", caller);
@@ -150,7 +181,7 @@ impl BabelCore {
         println!("Admin voting on proposal: {}, vote: {}", proposal_id, vote);
     }
 
-    fn is_owner(&self, caller: &String) -> bool {
+    fn is_owner(&self, caller: &Pubkey) -> bool {
         &self.owner == caller
     }
 
