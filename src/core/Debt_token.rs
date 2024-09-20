@@ -3,6 +3,21 @@
 use std::collections::HashMap;
 use secp256k1::{Secp256k1, Message, PublicKey, Signature};
 use borsh::{BorshSerialize, BorshDeserialize};
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey, // Ensure Pubkey is imported
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign, // Ensure this import is present
+    utxo::UtxoMeta,
+};
+use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struct
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct DebtToken {
@@ -15,7 +30,7 @@ pub struct DebtToken {
     debt: HashMap<AccountId, Balance>,
 }
 
-pub type AccountId = String; // Simplified for core Rust
+pub type AccountId = Pubkey; // Use Pubkey for AccountId
 pub type Balance = u128;
 
 impl DebtToken {
@@ -31,34 +46,152 @@ impl DebtToken {
         }
     }
 
-    pub fn mint(&mut self, account: AccountId, amount: Balance) {
+    pub fn mint(&mut self, account: AccountId, amount: Balance, account_info: &AccountInfo) -> Result<(), ProgramError> {
+        // Validate account ownership using Arch SDK
+        if !self.validate_utxo_ownership(account_info)? {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // Create a transaction to sign
+        let mut tx = get_state_transition_tx(&[account_info.clone()])?;
+        tx.input.push(get_bitcoin_tx(account_info)?.input[0].clone());
+
+        let tx_to_sign = TransactionToSign {
+            tx_bytes: bitcoin::consensus::serialize(&tx),
+            inputs_to_sign: vec![InputToSign {
+                index: 0,
+                signer: account_info.key.clone(),
+            }],
+        };
+
+        // Set the transaction to sign
+        set_transaction_to_sign(tx_to_sign)?;
+
         let balance = self.balances.entry(account).or_insert(0);
         *balance += amount;
         self.total_supply += amount;
+        Ok(())
     }
 
-    pub fn burn(&mut self, account: AccountId, amount: Balance) {
+    pub fn burn(&mut self, account: AccountId, amount: Balance, account_info: &AccountInfo) -> Result<(), ProgramError> {
+        // Validate account ownership using Arch SDK
+        if !self.validate_utxo_ownership(account_info)? {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // Create a transaction to sign
+        let mut tx = get_state_transition_tx(&[account_info.clone()])?;
+        tx.input.push(get_bitcoin_tx(account_info)?.input[0].clone());
+
+        let tx_to_sign = TransactionToSign {
+            tx_bytes: bitcoin::consensus::serialize(&tx),
+            inputs_to_sign: vec![InputToSign {
+                index: 0,
+                signer: account_info.key.clone(),
+            }],
+        };
+
+        // Set the transaction to sign
+        set_transaction_to_sign(tx_to_sign)?;
+
         let balance = self.balances.entry(account).or_default();
         if *balance < amount {
-            panic!("Insufficient balance");
+            return Err(ProgramError::InsufficientFunds);
         }
         *balance -= amount;
         self.total_supply -= amount;
+        Ok(())
     }
 
-    pub fn approve(&mut self, owner: AccountId, spender: AccountId, amount: Balance) {
-        self.allowances.insert((owner, spender), amount);
-    }
+    pub fn transfer(&mut self, from: AccountId, to: AccountId, amount: Balance, from_info: &AccountInfo, to_info: &AccountInfo) -> Result<(), ProgramError> {
+        // Validate account ownership using Arch SDK
+        if !self.validate_utxo_ownership(from_info)? || !self.validate_utxo_ownership(to_info)? {
+            return Err(ProgramError::InvalidAccountData);
+        }
 
-    pub fn transfer(&mut self, from: AccountId, to: AccountId, amount: Balance) {
+        // Create a transaction to sign
+        let mut tx = get_state_transition_tx(&[from_info.clone(), to_info.clone()])?;
+        tx.input.push(get_bitcoin_tx(from_info)?.input[0].clone());
+        tx.input.push(get_bitcoin_tx(to_info)?.input[0].clone());
+
+        let tx_to_sign = TransactionToSign {
+            tx_bytes: bitcoin::consensus::serialize(&tx),
+            inputs_to_sign: vec![
+                InputToSign {
+                    index: 0,
+                    signer: from_info.key.clone(),
+                },
+                InputToSign {
+                    index: 1,
+                    signer: to_info.key.clone(),
+                },
+            ],
+        };
+
+        // Set the transaction to sign
+        set_transaction_to_sign(tx_to_sign)?;
+
         let from_balance = self.balances.entry(from).or_default();
         if *from_balance < amount {
-            panic!("Insufficient balance");
+            return Err(ProgramError::InsufficientFunds);
         }
         *from_balance -= amount;
 
         let to_balance = self.balances.entry(to).or_insert(0);
         *to_balance += amount;
+        Ok(())
+    }
+
+    pub fn issue_debt(&mut self, user: AccountId, amount: Balance, account_info: &AccountInfo) -> Result<(), ProgramError> {
+        // Validate account ownership using Arch SDK
+        if !self.validate_utxo_ownership(account_info)? {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // Create a transaction to sign
+        let mut tx = get_state_transition_tx(&[account_info.clone()])?;
+        tx.input.push(get_bitcoin_tx(account_info)?.input[0].clone());
+
+        let tx_to_sign = TransactionToSign {
+            tx_bytes: bitcoin::consensus::serialize(&tx),
+            inputs_to_sign: vec![InputToSign {
+                index: 0,
+                signer: account_info.key.clone(),
+            }],
+        };
+
+        // Set the transaction to sign
+        set_transaction_to_sign(tx_to_sign)?;
+
+        let debt_balance = self.debt.entry(user.clone()).or_insert(0);
+        let collateral_balance = *self.collateral.get(&user).unwrap_or(&0);
+
+        if collateral_balance >= amount * 2 { // Ensure 200% collateralization
+            *debt_balance += amount;
+            self.total_supply += amount; // Mint debt tokens
+            let user_balance = self.balances.entry(user).or_insert(0);
+            *user_balance += amount;
+            Ok(())
+        } else {
+            Err(ProgramError::InsufficientFunds)
+        }
+    }
+
+    pub fn validate_utxo_ownership(&self, account_info: &AccountInfo) -> Result<bool, ProgramError> {
+        // Use Arch SDK's validate_utxo_ownership function
+        validate_utxo_ownership(&UtxoMeta::default(), account_info)
+    }
+
+    pub fn set_transaction(&self, tx: TransactionToSign) -> Result<(), ProgramError> {
+        set_transaction_to_sign(tx)
+    }
+
+    pub fn get_state_transition(&self) -> Result<Transaction, ProgramError> {
+        get_state_transition_tx()
+    }
+
+    pub fn invoke_external_program(&self, instruction: Instruction, account_infos: &[AccountInfo]) -> Result<(), ProgramError> {
+        invoke(&instruction, account_infos)
     }
 
     pub fn flash_loan(&mut self, amount: Balance, callback: impl FnOnce(Balance) -> bool) {
@@ -75,20 +208,6 @@ impl DebtToken {
     pub fn add_collateral(&mut self, user: AccountId, amount: Balance) {
         let collateral_balance = self.collateral.entry(user).or_insert(0);
         *collateral_balance += amount;
-    }
-
-    pub fn issue_debt(&mut self, user: AccountId, amount: Balance) {
-        let debt_balance = self.debt.entry(user.clone()).or_insert(0);
-        let collateral_balance = *self.collateral.get(&user).unwrap_or(&0);
-
-        if collateral_balance >= amount * 2 { // Ensure 200% collateralization
-            *debt_balance += amount;
-            self.total_supply += amount; // Mint debt tokens
-            let user_balance = self.balances.entry(user).or_insert(0);
-            *user_balance += amount;
-        } else {
-            panic!("Not enough collateral");
-        }
     }
 
     pub fn verify_signature(&self, message: &[u8], sig: &[u8], pub_key: &[u8]) -> bool {

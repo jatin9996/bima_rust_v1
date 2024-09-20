@@ -5,6 +5,23 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::interfaces::token_locker::ITokenLocker;
 use crate::interfaces::babel_core::BabelCore;
 use borsh::{BorshDeserialize, BorshSerialize}; // Add Borsh imports
+use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struct
+
+// Arch SDK imports
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey, // Ensure Pubkey is imported
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+};
 
 #[derive(BorshSerialize, BorshDeserialize)] // Derive Borsh traits
 pub struct AdminVoting {
@@ -17,6 +34,7 @@ pub struct AdminVoting {
     min_create_proposal_pct: u32,
     passing_pct: u32,
     system_start: u64,
+    utxo_set: HashMap<OutPoint, UtxoMeta>, // Add UTXO set
 }
 
 #[derive(BorshSerialize, BorshDeserialize)] // Derive Borsh traits
@@ -47,6 +65,7 @@ impl AdminVoting {
             min_create_proposal_pct,
             passing_pct,
             system_start,
+            utxo_set: HashMap::new(), // Initialize UTXO set
         }
     }
 
@@ -121,6 +140,42 @@ impl AdminVoting {
             for action in actions {
                 // Placeholder for action execution logic
                 println!("Executing action on target: {}", action.target);
+                // Handling a Bitcoin transaction
+                if action.target == "bitcoin_transaction" {
+                    let tx: Transaction = bincode::deserialize(&action.data).expect("Failed to deserialize transaction");
+                    // Process the Bitcoin transaction
+                    println!("Processing Bitcoin transaction: {:?}", tx);
+
+                    // Create TransactionToSign
+                    let tx_bytes = bincode::serialize(&tx).expect("Failed to serialize transaction");
+                    let inputs_to_sign = vec![InputToSign {
+                        index: 0, // Placeholder for actual input index
+                        signer: Pubkey::new_unique(), // Placeholder for actual signer
+                    }];
+                    let transaction_to_sign = TransactionToSign {
+                        tx_bytes,
+                        inputs_to_sign,
+                    };
+
+                    // Placeholder for invoking the transaction signing process
+                    println!("Transaction to sign: {:?}", transaction_to_sign);
+
+                    // Use Arch SDK functions
+                    let script_pubkey = get_account_script_pubkey(&action.target);
+                    msg!("script_pubkey {:?}", script_pubkey);
+
+                    set_transaction_to_sign(&[], transaction_to_sign);
+
+                    // Add UTXO to the set
+                    let outpoint = OutPoint::new(tx.txid(), 0); // Placeholder for actual output index
+                    let utxo_meta = UtxoMeta {
+                        txid: tx.txid(),
+                        vout: 0, // Placeholder for actual output index
+                        amount: 1000, // Placeholder for actual amount
+                        script_pubkey,
+                    };
+                    self.utxo_set.insert(outpoint, utxo_meta);
+                }
             }
         } else {
             panic!("Proposal cannot be executed yet");

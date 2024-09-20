@@ -1,13 +1,24 @@
 use std::collections::HashMap;
 use borsh::{BorshDeserialize, BorshSerialize};
 use crate::interfaces::trove_manager::TroveManager;
+use bitcoin::{self, Transaction};
+use arch_program::{
+    account::AccountInfo,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    msg,
+    program::{get_account_script_pubkey, get_caller_address, set_transaction_to_sign},
+    pubkey::Pubkey,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct Node {
     exists: bool,
-    next_id: Option<u32>, // Assuming AccountId can be represented as u32 for simplicity
+    next_id: Option<u32>,
     prev_id: Option<u32>,
-    nicr: u256, // Add NICR field
+    nicr: u256,
 }
 
 #[derive(BorshSerialize, BorshDeserialize)]
@@ -16,7 +27,9 @@ pub struct SortedTroves {
     tail: Option<u32>,
     size: u32,
     nodes: HashMap<u32, Node>,
-    trove_manager: Option<TroveManager>, // Add TroveManager field
+    trove_manager: Option<TroveManager>,
+    transactions: Vec<Transaction>,
+    utxos: HashMap<OutPoint, UtxoMeta>,
 }
 
 impl SortedTroves {
@@ -27,6 +40,8 @@ impl SortedTroves {
             size: 0,
             nodes: HashMap::new(),
             trove_manager: None,
+            transactions: Vec::new(),
+            utxos: HashMap::new(),
         }
     }
 
@@ -36,8 +51,7 @@ impl SortedTroves {
     }
 
     fn require_caller_is_trove_manager(&self) {
-        // Assuming we have a way to get the caller's address
-        let caller = get_caller_address();
+        let caller: Pubkey = get_caller_address();
         assert!(self.trove_manager.as_ref().map_or(false, |tm| tm.address == caller), "Caller is not the TroveManager");
     }
 
@@ -51,7 +65,6 @@ impl SortedTroves {
             nicr,
         };
 
-        // Insert logic based on NICR
         if let Some(prev_id) = prev_id {
             if let Some(prev_node) = self.nodes.get_mut(&prev_id) {
                 prev_node.next_id = Some(id);
@@ -70,6 +83,21 @@ impl SortedTroves {
 
         self.nodes.insert(id, node);
         self.size += 1;
+
+        let mut tx = get_state_transition_tx(&self.nodes);
+        msg!("State transition transaction created: {:?}", tx);
+
+        let input_to_sign = InputToSign {
+            index: 0,
+            signer: get_caller_address(),
+        };
+        let tx_to_sign = TransactionToSign {
+            tx_bytes: bitcoin::consensus::serialize(&tx),
+            inputs_to_sign: vec![input_to_sign],
+        };
+        msg!("Transaction to sign: {:?}", tx_to_sign);
+
+        set_transaction_to_sign(&self.nodes, tx_to_sign);
     }
 
     pub fn remove(&mut self, id: u32) {
@@ -93,6 +121,21 @@ impl SortedTroves {
             }
 
             self.size -= 1;
+
+            let mut tx = get_state_transition_tx(&self.nodes);
+            msg!("State transition transaction created: {:?}", tx);
+
+            let input_to_sign = InputToSign {
+                index: 0,
+                signer: get_caller_address(),
+            };
+            let tx_to_sign = TransactionToSign {
+                tx_bytes: bitcoin::consensus::serialize(&tx),
+                inputs_to_sign: vec![input_to_sign],
+            };
+            msg!("Transaction to sign: {:?}", tx_to_sign);
+
+            set_transaction_to_sign(&self.nodes, tx_to_sign);
         }
     }
 
@@ -101,7 +144,6 @@ impl SortedTroves {
         self.insert(id, new_nicr, new_prev_id, new_next_id);
     }
 
-    // Additional methods for NICR-based sorting
     fn valid_insert_position(&self, nicr: u256, prev_id: Option<u32>, next_id: Option<u32>) -> bool {
         if let Some(prev_id) = prev_id {
             if let Some(prev_node) = self.nodes.get(&prev_id) {
@@ -109,7 +151,7 @@ impl SortedTroves {
                     return false;
                 }
             } else {
-                return false; // prev_id does not exist
+                return false;
             }
         }
 
@@ -119,44 +161,46 @@ impl SortedTroves {
                     return false;
                 }
             } else {
-                return false; // next_id does not exist
-            }
-        }
-
-        true
-    }
-    // Additional methods for NICR-based sorting
-    fn valid_insert_position(&self, nicr: u256, prev_id: Option<u32>, next_id: Option<u32>) -> bool {
-        if let Some(prev_id) = prev_id {
-            if let Some(prev_node) = self.nodes.get(&prev_id) {
-                if prev_node.nicr > nicr {
-                    return false;
-                }
-            } else {
-                return false; // prev_id does not exist
-            }
-        }
-
-        if let Some(next_id) = next_id {
-            if let Some(next_node) = self.nodes.get(&next_id) {
-                if next_node.nicr < nicr {
-                    return false;
-                }
-            } else {
-                return false; // next_id does not exist
+                return false;
             }
         }
 
         true
     }
 
-    // Serialization method
     pub fn serialize(&self) -> Vec<u8> {
         self.try_to_vec().expect("Serialization failed")
     }
 
-    // Deserialization method
     pub fn deserialize(data: &[u8]) -> Self {
         Self::try_from_slice(data).expect("Deserialization failed")
+    }
+
+    pub fn add_transaction(&mut self, tx: Transaction, inputs_to_sign: Vec<InputToSign>) {
+        let tx_bytes = tx.serialize();
+        let transaction_to_sign = self.create_transaction_to_sign(tx_bytes, inputs_to_sign);
+        self.transactions.push(tx);
+    }
+
+    pub fn create_transaction_to_sign(&self, tx_bytes: Vec<u8>, inputs_to_sign: Vec<InputToSign>) -> TransactionToSign {
+        TransactionToSign {
+            tx_bytes,
+            inputs_to_sign,
+        }
+    }
+
+    pub fn add_utxo(&mut self, tx: &Transaction, vout: u32, value: u64, script_pubkey: Vec<u8>) {
+        let outpoint = OutPoint::new(tx.txid(), vout);
+        let utxo_meta = UtxoMeta {
+            txid: tx.txid(),
+            vout,
+            value,
+            script_pubkey,
+        };
+        self.utxos.insert(outpoint, utxo_meta);
+    }
+
+    pub fn spend_utxo(&mut self, outpoint: OutPoint) {
+        self.utxos.remove(&outpoint);
     }
 }

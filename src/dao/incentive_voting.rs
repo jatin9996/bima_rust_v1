@@ -2,15 +2,33 @@
 
 use core::collections::BTreeMap;
 use borsh::{BorshDeserialize, BorshSerialize};
+use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struct
+use archnetwork::transaction_to_sign::TransactionToSign; // Import TransactionToSign
+
+// Import Arch SDK modules
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey, // Ensure correct Pubkey type is used
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::{UtxoMeta, OutPoint},
+};
 
 const MAX_POINTS: u16 = 10000;
 const MAX_LOCK_WEEKS: u8 = 52;
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct IncentiveVoting {
-    token_locker: AccountId,
-    vault: AccountId,
-    account_lock_data: BTreeMap<AccountId, AccountData>,
+    token_locker: Pubkey,
+    vault: Pubkey,
+    account_lock_data: BTreeMap<Pubkey, AccountData>,
     receiver_count: u128,
     receiver_decay_rate: Vec<u32>,
     receiver_updated_week: Vec<u16>,
@@ -20,8 +38,10 @@ pub struct IncentiveVoting {
     total_updated_week: u16,
     total_weekly_weights: Vec<u64>,
     total_weekly_unlocks: Vec<u32>,
-    delegated_ops: AccountId,
+    delegated_ops: Pubkey,
     system_start: u64,
+    bitcoin_transactions: Vec<Transaction>,
+    utxo_set: BTreeMap<OutPoint, UtxoMeta>,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
@@ -46,23 +66,23 @@ pub struct Vote {
 #[derive(BorshSerialize, BorshDeserialize)]
 pub enum Event {
     AccountWeightRegistered {
-        account: AccountId,
+        account: Pubkey,
         week: u16,
         frozen_weight: u64,
         lock_data: Vec<LockData>,
     },
     VotesUpdated {
-        account: AccountId,
+        account: Pubkey,
         week: u16,
         votes: Vec<Vote>,
         points: u16,
     },
     ClearedVotes {
-        account: AccountId,
+        account: Pubkey,
         week: u16,
     },
     AccountVotesStored {
-        account: AccountId,
+        account: Pubkey,
         votes: Vec<Vote>,
         points: u16,
     },
@@ -75,7 +95,7 @@ pub struct LockData {
 }
 
 impl IncentiveVoting {
-    pub fn new(token_locker: AccountId, vault: AccountId, delegated_ops: AccountId, system_start: u64) -> Self {
+    pub fn new(token_locker: Pubkey, vault: Pubkey, delegated_ops: Pubkey, system_start: u64) -> Self {
         Self {
             token_locker,
             vault,
@@ -91,10 +111,12 @@ impl IncentiveVoting {
             total_weekly_unlocks: vec![0; 65535],
             delegated_ops,
             system_start,
+            bitcoin_transactions: vec![],
+            utxo_set: BTreeMap::new(),
         }
     }
 
-    pub fn register_account_weight(&mut self, account: AccountId, min_weeks: u64) {
+    pub fn register_account_weight(&mut self, account: Pubkey, min_weeks: u64) {
         // Ensure caller or delegated
         // Get lock data
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
@@ -114,10 +136,23 @@ impl IncentiveVoting {
 
         // Resubmit the account's active vote using the newly registered weights
         self.add_vote_weights(account, &existing_votes, frozen_weight);
+
         // Emit event
+        let script_pubkey = get_account_script_pubkey(&account);
+        msg!("script_pubkey {:?}", script_pubkey);
+
+        // Create state transition transaction
+        let mut tx = get_state_transition_tx(&[account]);
+        tx.input.push(InputToSign {
+            index: 0,
+            signer: account.key.clone(),
+        });
+
+        // Log the transaction to sign
+        msg!("State transition transaction: {:?}", tx);
     }
 
-    pub fn vote(&mut self, account: AccountId, votes: Vec<Vote>, clear_previous: bool) {
+    pub fn vote(&mut self, account: Pubkey, votes: Vec<Vote>, clear_previous: bool) {
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
         let frozen_weight = account_data.frozen_weight;
         assert!(frozen_weight > 0 || account_data.lock_length > 0, "No registered weight");
@@ -139,9 +174,19 @@ impl IncentiveVoting {
         // Store the new account votes
         self.store_account_votes(account, account_data, &votes, points, offset);
         // Emit event
+
+        // Create state transition transaction
+        let mut tx = get_state_transition_tx(&[account]);
+        tx.input.push(InputToSign {
+            index: 0,
+            signer: account.key.clone(),
+        });
+
+        // Log the transaction to sign
+        msg!("State transition transaction: {:?}", tx);
     }
 
-    fn register_account_weight_internal(&mut self, account: AccountId, min_weeks: u64) -> u64 {
+    fn register_account_weight_internal(&mut self, account: Pubkey, min_weeks: u64) -> u64 {
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
 
         // Get updated account lock weights and store locally
@@ -173,7 +218,7 @@ impl IncentiveVoting {
         account_data.frozen_weight
     }
 
-    fn add_vote_weights(&mut self, account: AccountId, votes: &[Vote], frozen_weight: u64) {
+    fn add_vote_weights(&mut self, account: Pubkey, votes: &[Vote], frozen_weight: u64) {
         let current_week = self.get_week();
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
 
@@ -203,7 +248,7 @@ impl IncentiveVoting {
         });
     }
 
-    fn remove_vote_weights(&mut self, account: AccountId, votes: &[Vote], frozen_weight: u64) {
+    fn remove_vote_weights(&mut self, account: Pubkey, votes: &[Vote], frozen_weight: u64) {
         let current_week = self.get_week();
         let account_data = self.account_lock_data.get_mut(&account).unwrap();
 
@@ -231,7 +276,7 @@ impl IncentiveVoting {
         });
     }
 
-    fn store_account_votes(&mut self, account: AccountId, account_data: &mut AccountData, votes: &[Vote], points: u16, offset: u16) {
+    fn store_account_votes(&mut self, account: Pubkey, account_data: &mut AccountData, votes: &[Vote], points: u16, offset: u16) {
         // Clear previous votes if offset is zero
         if offset == 0 {
             account_data.active_votes.clear();
@@ -258,7 +303,7 @@ impl IncentiveVoting {
         });
     }
 
-    fn get_account_current_votes(&self, account: AccountId) -> Vec<Vote> {
+    fn get_account_current_votes(&self, account: Pubkey) -> Vec<Vote> {
         if let Some(account_data) = self.account_lock_data.get(&account) {
             account_data.active_votes.iter().map(|(id, points)| Vote {
                 id: *id as u128,
@@ -275,5 +320,58 @@ impl IncentiveVoting {
 
     pub fn deserialize(data: &[u8]) -> Self {
         Self::try_from_slice(data).expect("Deserialization should not fail")
+    }
+
+    // Add a method to handle Bitcoin transactions and manage UTXOs
+    pub fn handle_bitcoin_transaction(&mut self, tx: Transaction) {
+        // Create a transaction to sign
+        let tx_bytes = tx.serialize(); // Serialize the transaction to bytes
+        let inputs_to_sign = vec![]; // Populate with actual inputs that need to be signed
+
+        let transaction = TransactionToSign::new(tx_bytes, inputs_to_sign);
+
+        // Simulate signing the transaction
+        self.sign_transaction(&transaction);
+
+        // Process the Bitcoin transaction
+        self.bitcoin_transactions.push(tx.clone());
+
+        // Add UTXOs from the transaction to the UTXO set
+        for (vout, output) in tx.output.iter().enumerate() {
+            let outpoint = OutPoint::new(tx.txid(), vout as u32);
+            let utxo_meta = UtxoMeta {
+                txid: tx.txid(),
+                vout: vout as u32,
+                amount: output.value,
+                script_pubkey: output.script_pubkey.clone(),
+            };
+            self.utxo_set.insert(outpoint, utxo_meta);
+        }
+
+        // Example of using get_bitcoin_tx
+        let bitcoin_tx = get_bitcoin_tx(&tx.txid());
+        msg!("Retrieved Bitcoin transaction: {:?}", bitcoin_tx);
+    }
+
+    // Add a method to spend UTXOs
+    pub fn spend_utxo(&mut self, outpoint: OutPoint) -> Result<(), ProgramError> {
+        if self.utxo_set.remove(&outpoint).is_none() {
+            return Err(ProgramError::Custom(502)); // UTXO not found
+        }
+        Ok(())
+    }
+
+    // Add a method to validate UTXOs
+    pub fn validate_utxo(&self, outpoint: &OutPoint) -> Result<(), ProgramError> {
+        if self.utxo_set.contains_key(outpoint) {
+            Ok(())
+        } else {
+            Err(ProgramError::Custom(503)) // UTXO not valid
+        }
+    }
+
+    fn sign_transaction(&self, transaction: &TransactionToSign) {
+        // Simulate signing the transaction
+        println!("Signing transaction with inputs: {:?}", transaction.inputs_to_sign);
     }
 }
