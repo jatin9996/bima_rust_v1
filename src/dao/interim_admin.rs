@@ -21,6 +21,7 @@ use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struct
 use archnetwork::transaction_to_sign::TransactionToSign; // Import TransactionToSign
 use std::collections::HashMap;
 
+
 #[derive(BorshSerialize, BorshDeserialize)]
 struct Proposal {
     created_at: u64,
@@ -112,6 +113,7 @@ impl InterimAdmin {
         self.proposal_payloads.push(payload);
         self.daily_proposals_count[day] += 1;
 
+
         // Create a transaction to sign
         let tx_bytes = self.create_transaction_bytes(proposal_id as u64);
         let inputs_to_sign = vec![InputToSign {
@@ -131,12 +133,17 @@ impl InterimAdmin {
         // Assuming we have a transaction and its details
         let tx = get_bitcoin_tx(); // Fetch the transaction
         utxo_set.add_utxo(&tx, 0, 1000, get_account_script_pubkey(caller)); // Example values
+
+        // Use Arch SDK to log the proposal creation
+        msg!("Proposal {} created", proposal_id);
+
     }
 
     pub fn cancel_proposal(&mut self, caller: &str, index: usize) {
         if let Some(guardian) = &self.guardian {
             if (caller == guardian || self.is_owner(caller)) && !self.proposals[index].processed {
                 self.proposals[index].processed = true;
+
 
                 // Create a transaction to sign
                 let tx_bytes = self.create_transaction_bytes(index as u64);
@@ -148,7 +155,6 @@ impl InterimAdmin {
 
                 // Set the transaction to sign using Arch SDK
                 set_transaction_to_sign(&[/* accounts */], transaction);
-
                 // Use Arch SDK to log the proposal cancellation
                 msg!("Proposal {} cancelled by {}", index, caller);
             } else {
@@ -159,6 +165,7 @@ impl InterimAdmin {
 
     fn get_current_time(&self) -> u64 {
         // Fetch the current time from the blockchain using Arch SDK
+
         match arch_program::clock::get() {
             Ok(clock) => clock.unix_timestamp as u64,
             Err(_) => {
@@ -166,6 +173,7 @@ impl InterimAdmin {
                 0
             }
         }
+
     }
 
     fn is_owner(&self, caller: &str) -> bool {

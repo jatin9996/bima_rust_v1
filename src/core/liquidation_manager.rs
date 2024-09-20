@@ -16,6 +16,7 @@ use arch_program::{
     system_instruction::SystemInstruction,
     transaction_to_sign::TransactionToSign,
     utxo::UtxoMeta,
+
   
 };
 
@@ -54,7 +55,6 @@ impl UtxoSet {
     }
 }
 
-// Add UTXO set to LiquidationManager
 pub struct LiquidationManager {
     stability_pool: String,
     sorted_troves: String,
@@ -91,6 +91,7 @@ impl LiquidationManager {
     pub fn liquidate(&mut self, trove_manager: String, borrower: Pubkey) -> Result<Option<Liquidation>, ProgramError> {
         let is_enabled = *self.enabled_trove_managers.get(&trove_manager).unwrap_or(&false);
         if (!is_enabled) {
+
             return Ok(None);
         }
 
@@ -100,7 +101,9 @@ impl LiquidationManager {
 
         let liquidation = Liquidation {
             borrower: borrower.clone(),
+
             liquidated_debt: debt_reduction,
+
             liquidated_coll: collateral_reduction,
         };
 
@@ -158,7 +161,25 @@ impl LiquidationManager {
             inputs_to_sign,
         };
 
+
         Ok(tx_to_sign)
+
+        // Create a transaction to record the liquidation
+        let tx = self.create_liquidation_transaction(&borrower, debt_reduction, collateral_reduction)?;
+
+        // Set the transaction to be signed
+        set_transaction_to_sign(tx)?;
+
+        Ok(Some(liquidation))
+    }
+
+    fn create_liquidation_transaction(&self, borrower: &String, debt_reduction: u64, collateral_reduction: u64) -> Result<TransactionToSign, ProgramError> {
+        // Placeholder for creating a transaction using Arch SDK
+        let tx = TransactionToSign {
+            // Populate with necessary fields
+            // ...
+        };
+        Ok(tx
     }
 
     // Access control method
@@ -176,25 +197,28 @@ impl LiquidationManager {
 
 mod FinancialMath {
     pub fn calculate_debt_reduction() -> u64 {
-  
+
         // This function should calculate the debt reduction based on the logic in LiquidationManager.sol
         100
     }
 
     pub fn calculate_collateral_reduction() -> u64 {
-       
+
         // This function should calculate the collateral reduction based on the logic in LiquidationManager.sol
         50
     }
 
     pub fn calculate_coll_gas_compensation(coll: u64) -> u64 {
+
         // This function should calculate the collateral gas compensation based on the logic in LiquidationManager.sol
         coll / 100 // of the collateral
     }
 
     pub fn calculate_debt_gas_compensation() -> u64 {
-        // 
+
+        
         // This function should calculate the debt gas compensation based on the logic in LiquidationManager.sol
-        10 //  gas
+        10 // Example gas
+
     }
 }

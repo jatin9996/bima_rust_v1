@@ -8,13 +8,14 @@ use arch_program::{
     instruction::Instruction,
     msg,
     program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
-    program_error::ProgramError,
+    program_error::ProgramError
     pubkey::Pubkey, // Ensure Pubkey is imported
     system_instruction::SystemInstruction,
     transaction_to_sign::TransactionToSign,
     utxo::UtxoMeta,
 };
 use bitcoin::{self, Transaction}; // Importing bitcoin crate and Transaction struct
+  
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct BorrowerOperationsState {
@@ -65,6 +66,7 @@ impl BorrowerOperationsState {
         let instruction = Instruction::new();
         msg!("Arch SDK functionality used in adjust_trove");
 
+
         // Construct TransactionToSign
         let tx_bytes = tx.serialize();
         let inputs_to_sign = vec![input_to_sign];
@@ -78,6 +80,7 @@ impl BorrowerOperationsState {
 
         // Set return data
         set_return_data(&self.serialize());
+
 
         // Add UTXO management
         let utxo_set = UtxoSet::new();
@@ -102,6 +105,7 @@ impl BorrowerOperationsState {
         let instruction = Instruction::new();
         msg!("Arch SDK functionality used in open_trove");
 
+
         // Construct TransactionToSign
         let tx_bytes = tx.serialize();
         let inputs_to_sign = vec![input_to_sign];
@@ -109,16 +113,17 @@ impl BorrowerOperationsState {
 
         // Set transaction to sign
         set_transaction_to_sign(transaction_to_sign);
+        
 
         // Validate UTXO ownership
         validate_utxo_ownership(&account_info, &tm_data.collateral_token);
 
-        // Set return data
-        set_return_data(&self.serialize());
+      set_return_data(&self.serialize());
 
         // Add UTXO management
         let utxo_set = UtxoSet::new();
         utxo_set.add_utxo(&tx, 0, collateral_amount as u64, account_info.key.to_string());
+
     }
 
     pub fn issue_debt(&mut self, amount: u128) {

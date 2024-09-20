@@ -13,6 +13,7 @@ use arch_program::{
     transaction_to_sign::TransactionToSign, input_to_sign::InputToSign, msg,
 };
 
+
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct AllocationSplit {
     recipient: Pubkey,  // Using Pubkey to represent AccountId

@@ -77,18 +77,21 @@ impl BabelCore {
         Ok(())
     }
 
-    pub fn commit_transfer_ownership(&mut self, caller: Pubkey, new_owner: Pubkey, accounts: &[AccountInfo]) -> Result<(), ProgramError> {
+  
+    pub fn commit_transfer_ownership(&mut self, caller: String, new_owner: String, accounts: &[AccountInfo]) -> Result<(), ProgramError>{
         if self.is_owner(&caller) {
             self.pending_owner = Some(new_owner);
             self.ownership_transfer_deadline = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + OWNERSHIP_TRANSFER_DELAY);
             msg!("Ownership transfer committed to {} with deadline {}", new_owner, self.ownership_transfer_deadline.unwrap());
 
-            // Set transaction to sign using Arch SDK
+            // Set transaction to sign using Arch
             let tx_bytes = self.serialize()?; // Serialize the current state
             let inputs_to_sign = vec![InputToSign::new(caller.to_string(), tx_bytes.clone())]; // Create inputs to sign
             let transaction_to_sign = TransactionToSign::new(tx_bytes, inputs_to_sign); // Create the transaction to sign
 
             set_transaction_to_sign(accounts, transaction_to_sign)?; // Set the transaction to sign
+
+            set_transaction_to_sign(accounts)?;
 
             Ok(())
         } else {
@@ -96,7 +99,8 @@ impl BabelCore {
         }
     }
 
-    pub fn accept_transfer_ownership(&mut self, caller: Pubkey) -> Result<(), ProgramError> {
+    pub fn accept_transfer_ownership(&mut self, caller: String) -> Result<(), ProgramError> {
+
         if let Some(ref pending_owner) = self.pending_owner {
             if caller == *pending_owner && SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() >= self.ownership_transfer_deadline.unwrap() {
                 msg!("Ownership transferred from {} to {}", self.owner, pending_owner);

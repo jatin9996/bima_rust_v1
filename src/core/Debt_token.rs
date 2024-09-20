@@ -12,12 +12,19 @@ use arch_program::{
     msg,
     program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
     program_error::ProgramError,
+
     pubkey::Pubkey, // Ensure Pubkey is imported
     system_instruction::SystemInstruction,
     transaction_to_sign::TransactionToSign, // Ensure this import is present
     utxo::UtxoMeta,
 };
-use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struct
+use bitcoin::{self, Transaction}; // Import bitcoin crate and Transaction struc
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
 
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct DebtToken {
@@ -50,8 +57,7 @@ impl DebtToken {
         // Validate account ownership using Arch SDK
         if !self.validate_utxo_ownership(account_info)? {
             return Err(ProgramError::InvalidAccountData);
-        }
-
+    
         // Create a transaction to sign
         let mut tx = get_state_transition_tx(&[account_info.clone()])?;
         tx.input.push(get_bitcoin_tx(account_info)?.input[0].clone());
@@ -66,6 +72,7 @@ impl DebtToken {
 
         // Set the transaction to sign
         set_transaction_to_sign(tx_to_sign)?;
+
 
         let balance = self.balances.entry(account).or_insert(0);
         *balance += amount;
@@ -77,8 +84,7 @@ impl DebtToken {
         // Validate account ownership using Arch SDK
         if !self.validate_utxo_ownership(account_info)? {
             return Err(ProgramError::InvalidAccountData);
-        }
-
+       
         // Create a transaction to sign
         let mut tx = get_state_transition_tx(&[account_info.clone()])?;
         tx.input.push(get_bitcoin_tx(account_info)?.input[0].clone());
@@ -93,6 +99,7 @@ impl DebtToken {
 
         // Set the transaction to sign
         set_transaction_to_sign(tx_to_sign)?;
+
 
         let balance = self.balances.entry(account).or_default();
         if *balance < amount {
@@ -107,7 +114,7 @@ impl DebtToken {
         // Validate account ownership using Arch SDK
         if !self.validate_utxo_ownership(from_info)? || !self.validate_utxo_ownership(to_info)? {
             return Err(ProgramError::InvalidAccountData);
-        }
+
 
         // Create a transaction to sign
         let mut tx = get_state_transition_tx(&[from_info.clone(), to_info.clone()])?;
@@ -131,6 +138,7 @@ impl DebtToken {
         // Set the transaction to sign
         set_transaction_to_sign(tx_to_sign)?;
 
+
         let from_balance = self.balances.entry(from).or_default();
         if *from_balance < amount {
             return Err(ProgramError::InsufficientFunds);
@@ -148,6 +156,7 @@ impl DebtToken {
             return Err(ProgramError::InvalidAccountData);
         }
 
+
         // Create a transaction to sign
         let mut tx = get_state_transition_tx(&[account_info.clone()])?;
         tx.input.push(get_bitcoin_tx(account_info)?.input[0].clone());
@@ -162,6 +171,7 @@ impl DebtToken {
 
         // Set the transaction to sign
         set_transaction_to_sign(tx_to_sign)?;
+
 
         let debt_balance = self.debt.entry(user.clone()).or_insert(0);
         let collateral_balance = *self.collateral.get(&user).unwrap_or(&0);
