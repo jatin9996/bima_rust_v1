@@ -59,40 +59,43 @@ impl BabelCore {
 
     pub fn set_fee_receiver(&mut self, new_fee_receiver: String) {
         self.fee_receiver = new_fee_receiver;
+        msg!("FeeReceiverSet: {}", new_fee_receiver); // Event-like log
     }
 
     pub fn set_price_feed(&mut self, new_price_feed: String) {
         self.price_feed = new_price_feed;
+        msg!("PriceFeedSet: {}", new_price_feed); // Event-like log
     }
 
     pub fn set_guardian(&mut self, new_guardian: Pubkey) {
+        msg!("GuardianSet: Changed from {:?} to {:?}", self.guardian, new_guardian);
         self.guardian = new_guardian;
     }
 
     pub fn set_paused(&mut self, new_paused: bool) -> Result<(), ProgramError> {
-        if new_paused && self.guardian != self.owner {
+        // Allow both the guardian and the owner to pause the system
+        if new_paused && (self.guardian != self.owner) && (self.owner != get_caller()) {
             return Err(ProgramError::Unauthorized);
         }
         self.paused = new_paused;
+        if new_paused {
+            msg!("Paused"); // Event-like log for pausing
+        } else {
+            msg!("Unpaused"); // Event-like log for unpausing
+        }
         Ok(())
     }
-
   
     pub fn commit_transfer_ownership(&mut self, caller: String, new_owner: String, accounts: &[AccountInfo]) -> Result<(), ProgramError>{
         if self.is_owner(&caller) {
-            self.pending_owner = Some(new_owner);
+            self.pending_owner = Some(new_owner.clone());
             self.ownership_transfer_deadline = Some(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + OWNERSHIP_TRANSFER_DELAY);
-            msg!("Ownership transfer committed to {} with deadline {}", new_owner, self.ownership_transfer_deadline.unwrap());
-
-            // Set transaction to sign using Arch
+            msg!("NewOwnerCommitted: Committed by {}, New owner pending: {}, Deadline: {}", caller, new_owner, self.ownership_transfer_deadline.unwrap());
+            // Additional logging for ownership commitment
             let tx_bytes = self.serialize()?; // Serialize the current state
             let inputs_to_sign = vec![InputToSign::new(caller.to_string(), tx_bytes.clone())]; // Create inputs to sign
             let transaction_to_sign = TransactionToSign::new(tx_bytes, inputs_to_sign); // Create the transaction to sign
-
             set_transaction_to_sign(accounts, transaction_to_sign)?; // Set the transaction to sign
-
-            set_transaction_to_sign(accounts)?;
-
             Ok(())
         } else {
             Err(ProgramError::Unauthorized)
@@ -100,13 +103,13 @@ impl BabelCore {
     }
 
     pub fn accept_transfer_ownership(&mut self, caller: String) -> Result<(), ProgramError> {
-
         if let Some(ref pending_owner) = self.pending_owner {
             if caller == *pending_owner && SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() >= self.ownership_transfer_deadline.unwrap() {
-                msg!("Ownership transferred from {} to {}", self.owner, pending_owner);
+                msg!("NewOwnerAccepted: Ownership transferred from {} to {}", self.owner, pending_owner);
                 self.owner = pending_owner.clone();
                 self.pending_owner = None;
                 self.ownership_transfer_deadline = None;
+                msg!("NewOwnerAccepted: Ownership accepted by {}", caller);
                 Ok(())
             } else {
                 Err(ProgramError::Unauthorized)
@@ -117,6 +120,7 @@ impl BabelCore {
     }
 
     pub fn revoke_transfer_ownership(&mut self) {
+        msg!("NewOwnerRevoked: Revoked by {}, Pending owner was {}", self.owner, self.pending_owner.unwrap_or_default());
         self.pending_owner = None;
         self.ownership_transfer_deadline = None;
     }
