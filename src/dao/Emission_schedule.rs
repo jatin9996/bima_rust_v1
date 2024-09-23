@@ -15,8 +15,11 @@ use arch_program::{
     system_instruction::SystemInstruction,
     transaction_to_sign::TransactionToSign,
     utxo::UtxoMeta,
+
 };
 use bitcoin::{self, Transaction}; // Import the bitcoin crate and Transaction struct
+
+
 
 #[derive(BorshSerialize, BorshDeserialize)]
 struct BabelOwnable {
@@ -91,6 +94,13 @@ impl EmissionSchedule {
         }
         self.scheduled_weekly_pct = schedule.into_iter().collect();
 
+
+        // Use Arch SDK to validate the caller account
+        let caller_info = AccountInfo::new(&caller);
+        assert!(validate_utxo_ownership(&caller_info).is_ok(), "Invalid caller account");
+    }
+
+
         // Validate UTXO ownership
         for utxo in &self.utxos {
             let utxo_info = AccountInfo::new(&utxo.pubkey);
@@ -117,6 +127,7 @@ impl EmissionSchedule {
         assert!(weeks <= MAX_LOCK_WEEKS, "Lock duration exceeds maximum allowed weeks");
         self.lock_weeks = weeks;
 
+
         // Validate UTXO ownership
         for utxo in &self.utxos {
             let utxo_info = AccountInfo::new(&utxo.pubkey);
@@ -136,11 +147,16 @@ impl EmissionSchedule {
 
         // Set the transaction to sign
         set_transaction_to_sign(&[caller_info], tx);
+
+        // Use Arch SDK to validate the caller account
+        let caller_info = AccountInfo::new(&caller);
+        assert!(validate_utxo_ownership(&caller_info).is_ok(), "Invalid caller account");
     }
 
     pub fn unlock(&mut self, caller: Pubkey) {
         self.babel_ownable.only_owner(caller);
         self.lock_weeks = 0;
+
 
         // Validate UTXO ownership
         for utxo in &self.utxos {
@@ -178,6 +194,9 @@ impl EmissionSchedule {
         // Process the Bitcoin transaction using the Arch SDK
         let tx_info = get_bitcoin_tx(&tx);
         // Further processing logic here...
+        // Use Arch SDK to validate the caller account
+        let caller_info = AccountInfo::new(&caller);
+        assert!(validate_utxo_ownership(&caller_info).is_ok(), "Invalid caller account");
     }
 }
 

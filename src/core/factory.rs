@@ -13,6 +13,7 @@ use arch_program::{
     system_instruction::SystemInstruction,
     transaction_to_sign::TransactionToSign,
     utxo::UtxoMeta,
+
 };
 use bitcoin::{self, Transaction};
 
@@ -83,6 +84,7 @@ impl Factory {
         self.trove_managers.insert(id, trove_manager_impl);
 
         // Use Arch SDK to validate UTXO ownership
+
         let utxo_meta = UtxoMeta::new();
         validate_utxo_ownership(&utxo_meta, accounts)?;
 
@@ -108,6 +110,13 @@ impl Factory {
         state_tx.input.push(tx.input[0].clone());
 
         msg!("State transition transaction: {:?}", state_tx);
+
+        let utxo_meta = UtxoMeta::new(); // Assuming UtxoMeta has a new method
+        validate_utxo_ownership(&utxo_meta, accounts)?; // Validate UTXO ownership
+
+        // Use Arch SDK to set transaction to sign
+        let tx_to_sign = TransactionToSign::new(); // Assuming TransactionToSign has a new method
+        set_transaction_to_sign(&tx_to_sign)?; // Set transaction to 
 
         Ok(())
     }

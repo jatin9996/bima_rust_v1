@@ -21,6 +21,23 @@ use arch_program::{
     utxo::{UtxoMeta, OutPoint},
 };
 
+// Import Arch SDK modules
+use arch_program::{
+    account::AccountInfo,
+    entrypoint,
+    helper::get_state_transition_tx,
+    input_to_sign::InputToSign,
+    instruction::Instruction,
+    msg,
+    program::{get_account_script_pubkey, get_bitcoin_tx, get_network_xonly_pubkey, invoke, next_account_info, set_return_data, set_transaction_to_sign, validate_utxo_ownership},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    system_instruction::SystemInstruction,
+    transaction_to_sign::TransactionToSign,
+    utxo::UtxoMeta,
+    bitcoin::{self, Transaction},
+};
+
 const MAX_POINTS: u16 = 10000;
 const MAX_LOCK_WEEKS: u8 = 52;
 
