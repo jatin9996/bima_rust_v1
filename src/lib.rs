@@ -28,3 +28,25 @@ fn process_instructions(input: *mut u8) -> u64 {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::instructions::ContractInstruction;
+
+    #[test]
+    fn test_process_instructions() {
+        // This is a basic test and might need to be adjusted based on your actual implementation
+        let mut input_data = Vec::new();
+        // Simulate program_id, accounts, and instruction_data
+        input_data.extend_from_slice(&[0u8; 32]); // program_id
+        input_data.extend_from_slice(&[0u8; 32]); // accounts
+        
+        // Create a dummy ContractInstruction
+        let dummy_instruction = ContractInstruction::Initialize;
+        let instruction_data = dummy_instruction.try_to_vec().unwrap();
+        input_data.extend_from_slice(&instruction_data);
+
+        let result = process_instructions(input_data.as_mut_ptr());
+        assert_eq!(result, 0); // Assuming 0 means success
+    }
+}

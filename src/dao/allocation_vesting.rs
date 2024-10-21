@@ -329,3 +329,56 @@ fn main() {
     let mut vesting = AllocationVesting::new(1000000, 20, owner_pubkey, Box::new(ERC20Trait::default()), Box::new(ITokenLocker::default()));
     println!("{:?}", vesting);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arch_program::pubkey::Pubkey;
+
+    #[test]
+    fn test_new_allocation_vesting() {
+        let owner = Pubkey::new_unique();
+        let token = Box::new(MockERC20Trait);
+        let token_locker = Box::new(MockITokenLocker);
+        let vesting = AllocationVesting::new(1000000, 20, owner, token, token_locker);
+
+        assert_eq!(vesting.total_allocation, 1000000);
+        assert_eq!(vesting.max_total_preclaim_pct, 20);
+        assert_eq!(vesting.owner, owner);
+    }
+
+    #[test]
+    fn test_set_allocations() {
+        let owner = Pubkey::new_unique();
+        let mut vesting = AllocationVesting::new(1000000, 20, owner, Box::new(MockERC20Trait), Box::new(MockITokenLocker));
+        
+        let allocation_splits = vec![
+            AllocationSplit { recipient: Pubkey::new_unique(), points: 100, number_of_weeks: 10 },
+            AllocationSplit { recipient: Pubkey::new_unique(), points: 200, number_of_weeks: 20 },
+        ];
+
+        let result = vesting.set_allocations(allocation_splits, 1000);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_transfer_points() {
+        let owner = Pubkey::new_unique();
+        let mut vesting = AllocationVesting::new(1000000, 20, owner, Box::new(MockERC20Trait), Box::new(MockITokenLocker));
+        
+        let from = Pubkey::new_unique();
+        let to = Pubkey::new_unique();
+        
+        // Set up initial allocations
+        vesting.set_allocations(vec![
+            AllocationSplit { recipient: from, points: 100, number_of_weeks: 10 },
+        ], 1000).unwrap();
+
+        let result = vesting.transfer_points(&from, &to, 50);
+        assert!(result.is_ok());
+    }
+
+    // Add more tests for other methods...
+
+    
+}

@@ -16,3 +16,22 @@ macro_rules! entrypoint {
         }
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_entrypoint_macro() {
+        // This is more of a compilation test
+        // If this compiles, the macro is working as expected
+        entrypoint!(dummy_process_instruction);
+
+        fn dummy_process_instruction(_program_id: &[u8], _accounts: &[u8], _instruction_data: &[u8]) -> Result<(), String> {
+            Ok(())
+        }
+
+        // You can't directly call the generated entrypoint function in tests,
+        // but you can verify that it compiles correctly
+    }
+}

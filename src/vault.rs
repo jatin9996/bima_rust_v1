@@ -27,3 +27,45 @@ impl VaultState {
         self.stablecoin_supply += stablecoins;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_vault_state() {
+        let vault = VaultState::new();
+        assert_eq!(vault.bitcoin_balance, 0);
+        assert_eq!(vault.stablecoin_supply, 0);
+        assert_eq!(vault.exchange_rate, 50000);
+        assert!(vault.bitcoin_utxos.is_empty());
+    }
+
+    #[test]
+    fn test_deposit_bitcoin_utxo () {
+        let mut vault = VaultState::new();
+        let utxo = BitcoinUtxo {
+            tx_id: "tx_id".to_string(),
+            vout: 0,
+            amount: 10000,
+        };
+        vault.deposit_bitcoin_utxo(utxo.clone());
+        assert_eq!(vault.bitcoin_balance, 10000);
+        assert_eq!(vault.bitcoin_utxos.len(), 1);
+        assert_eq!(vault.bitcoin_utxos.get(&utxo.tx_id).unwrap().vout, 0);
+    }
+
+    #[test]
+    fn test_withdraw_bitcoin_utxo() {
+        let mut vault = VaultState::new();
+        let utxo = BitcoinUtxo {
+            tx_id: "tx_id".to_string(),
+            vout: 0,
+            amount: 10000,
+        };
+        vault.deposit_bitcoin_utxo(utxo.clone());
+        vault.withdraw_bitcoin_utxo(utxo.clone());
+        assert_eq!(vault.bitcoin_balance, 0);
+        assert!(vault.bitcoin_utxos.is_empty());
+    }
+}
