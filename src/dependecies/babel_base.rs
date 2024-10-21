@@ -47,7 +47,6 @@ impl BabelBase {
         Ok(())
     }
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,7 +66,7 @@ mod tests {
     #[test]
     fn test_coll_gas_compensation() {
         let contract = BabelBase::new(100);
-        assert_eq!(contract.get_coll_gas_compensation(200), 1); // Since PERCENT_DIVISOR is 200
+        assert_eq!(contract.get_coll_gas_compensation(200), 1);
     }
 
     #[test]

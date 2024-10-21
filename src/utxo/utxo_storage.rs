@@ -30,3 +30,38 @@ mod utxo_storage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_interim_admin() {
+        let babel_core = "babel_core".to_string();
+        let owner = "owner".to_string();
+        let admin = InterimAdmin::new(babel_core.clone(), owner.clone());
+
+        assert_eq!(admin.babel_core, babel_core);
+        assert_eq!(admin.owner, owner);
+    }
+
+    #[test]
+    fn test_set_guardian() {
+        let mut admin = InterimAdmin::new("babel_core".to_string(), "owner".to_string());
+        admin.set_guardian("owner", "guardian".to_string());
+
+        assert_eq!(admin.guardian, Some("guardian".to_string()));
+    }
+
+    #[test]
+    fn test_create_new_proposal() {
+        let mut admin = InterimAdmin::new("babel_core".to_string(), "owner".to_string());
+        let payload = vec![Action { target: "target".to_string(), data: vec![1, 2, 3] }];
+
+        admin.create_new_proposal("owner", payload); // Implement the logic for this method...
+
+        // Assert the proposal was created successfully...
+    }
+
+    // Add more tests for other methods...
+}

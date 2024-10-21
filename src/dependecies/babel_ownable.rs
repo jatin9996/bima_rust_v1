@@ -46,3 +46,31 @@ fn main() {
     println!("Deserialized Guardian: {}", deserialized_babel_ownable.guardian());
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_babel_ownable() {
+        let babel_ownable = BabelOwnable::new("owner".to_string(), "guardian".to_string());
+        assert_eq!(babel_ownable.owner(), "owner");
+        assert_eq!(babel_ownable.guardian(), "guardian");
+    }
+
+    #[test]
+    fn test_only_owner() {
+        let babel_ownable = BabelOwnable::new("owner".to_string(), "guardian".to_string());
+        assert!(babel_ownable.only_owner(&"owner".to_string()));
+        assert!(!babel_ownable.only_owner(&"not_owner".to_string()));
+    }
+
+    #[test]
+    fn test_serialization_deserialization() {
+        let babel_ownable = BabelOwnable::new("owner".to_string(), "guardian".to_string());
+        let serialized = babel_ownable.try_to_vec().unwrap();
+        let deserialized = BabelOwnable::try_from_slice(&serialized).unwrap();
+        
+        assert_eq!(babel_ownable.owner(), deserialized.owner());
+        assert_eq!(babel_ownable. guardian(), deserialized.guardian());
+    }
+}

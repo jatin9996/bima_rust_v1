@@ -105,3 +105,68 @@ pub trait IIncentiveVoting {
     /// Returns the vault address.
     fn vault(&self) -> &str;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct MockIncentiveVoting;
+
+    impl IncentiveVoting for MockIncentiveVoting {
+        fn clear_vote(&self, account: &str) {
+            // Implementation for testing
+        }
+
+        fn get_receiver_vote_pct(&self, id: u256, week: u256) -> u256 {
+            // Mock implementation
+            100
+        }
+
+        fn get_receiver_weight_write(&self, idx: u256) -> u256 {
+            // Mock implementation
+            200
+        }
+
+        fn get_total_weight_write(&self) -> u256 {
+            // Mock implementation
+            1000
+        }
+
+        fn register_account_weight(&self, account: &str, min_weeks: u256) {
+            // Implementation for testing
+        }
+
+        fn register_account_weight_and_vote(&self, account: &str, min_weeks: u256, votes: &[Vote]) {
+            // Implementation for testing
+        }
+
+        fn register_new_receiver(&self) -> u256 {
+            // Mock implementation
+            42
+        }
+    }
+
+    #[test]
+    fn test_get_receiver_vote_pct() {
+        let mock = MockIncentiveVoting;
+        assert_eq!(mock.get_receiver_vote_pct(1, 1), 100);
+    }
+
+    #[test]
+    fn test_get_receiver_weight_write() {
+        let mock = MockIncentiveVoting;
+        assert_eq!(mock.get_receiver_weight_write(1), 200);
+    }
+
+    #[test]
+    fn test_get_total_weight_write() {
+        let mock = MockIncentiveVoting;
+        assert_eq!(mock.get_total_weight_write(), 1000);
+    }
+
+    #[test]
+    fn test_register_new_receiver() {
+        let mock = MockIncentiveVoting;
+        assert_eq!(mock.register_new_receiver(), 42);
+    }
+}

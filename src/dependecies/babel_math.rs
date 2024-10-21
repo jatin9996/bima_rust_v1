@@ -94,3 +94,56 @@ impl BabelMath {
 }
 
 type Balance = u64; // Placeholder type definition
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_min() {
+        assert_eq!(BabelMath::min(5, 10), 5);
+        assert_eq!(BabelMath::min(10, 5), 5);
+        assert_eq!(BabelMath::min(5, 5), 5);
+    }
+
+    #[test]
+    fn test_max() {
+        assert_eq!(BabelMath::max(5, 10), 10);
+        assert_eq!(BabelMath::max(10, 5), 10);
+        assert_eq!(BabelMath::max(5, 5), 5);
+    }
+
+    #[test]
+    fn test_dec_mul() {
+        assert_eq!(BabelMath::dec_mul(2 * BabelMath::DECIMAL_PRECISION, 3 * BabelMath::DECIMAL_PRECISION), 6 * BabelMath::DECIMAL_PRECISION);
+    }
+
+    #[test]
+    fn test_dec_pow() {
+        assert_eq!(BabelMath::dec_pow(2 * BabelMath::DECIMAL_PRECISION, 3), 8 * BabelMath::DECIMAL_PRECISION);
+    }
+
+    #[test]
+    fn test_get_absolute_difference() {
+        assert_eq!(BabelMath::get_absolute_difference(10, 5), 5);
+        assert_eq!(BabelMath::get_absolute_difference(5, 10), 5);
+    }
+
+    #[test]
+    fn test_compute_nominal_cr() {
+        assert_eq!(BabelMath::compute_nominal_cr(100, 50), 2 * BabelMath::NICR_PRECISION);
+        assert_eq!(BabelMath::compute_nominal_cr(100, 0), u128::MAX);
+    }
+
+    #[test]
+    fn test_compute_cr() {
+        assert_eq!(BabelMath::compute_cr(100, 50, BabelMath::DECIMAL_PRECISION), 2 * BabelMath::DECIMAL_PRECISION);
+        assert_eq!(BabelMath::compute_cr(100, 0, BabelMath::DECIMAL_PRECISION), u128::MAX);
+    }
+
+    #[test]
+    fn test_compute_cr_without_price() {
+        assert_eq!(BabelMath::compute_cr_without_price(100, 50), 2);
+        assert_eq!(BabelMath::compute_cr_without_price(100, 0), u128::MAX);
+    }
+}

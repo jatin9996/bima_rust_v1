@@ -21,3 +21,22 @@ mod utxo {
         // Additional methods related to UTXO can be added here
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_utxo_creation() {
+        let txid = vec![1, 2, 3, 4];
+        let vout = 0;
+        let value = 100;
+        let script = vec![5, 6, 7, 8];
+
+        let utxo = UTXO::new(txid.clone(), vout, value, script.clone());
+
+        assert_eq!(utxo.txid, txid);
+        assert_eq!(utxo.vout, vout);
+        assert_eq!(utxo.value, value);
+        assert_eq!(utxo.script, script);
+    }
+}

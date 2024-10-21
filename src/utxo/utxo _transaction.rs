@@ -80,3 +80,39 @@ mod transaction {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ink_lang as ink;
+
+    #[test]
+    fn test_validate_transaction() {
+        let input1 = UTXO::new(vec![1], 0, 50, vec![]);
+        let input2 = UTXO::new(vec![2], 1, 30, vec![]);
+        let output1 = UTXO::new(vec![3], 0, 40, vec![]);
+        let output2 = UTXO::new(vec![4], 0, 40, vec![]);
+
+        let valid_transaction = Transaction::new(vec![input1, input2], vec![output1, output2]);
+        assert!(valid_transaction.validate_transaction());
+
+        let invalid_output = UTXO::new(vec![5], 0, 41, vec![]);
+        let invalid_transaction = Transaction::new(vec![input1, input2], vec![output1, invalid_output]);
+        assert!(!invalid_transaction.validate_transaction());
+    }
+
+    #[test]
+    fn test_check_utxo_ownership() {
+        let account_id = AccountId::from([0x1; 32]);
+        let utxo = UTXO::new(vec![1], 0, 50, vec![]);
+        utxo.owner = account_id;
+
+        let transaction = Transaction::new(vec![], vec![]);
+        assert!(transaction.check_utxo_ownership(account_id, &utxo));
+        
+        let different_account = AccountId::from([0x2; 32]);
+        assert!(!transaction.check_utxo_ownership(different_account, &utxo));
+    }
+
+    // Note: Testing broadcast_transaction and lock_utxo would require mocking external contracts,
+}

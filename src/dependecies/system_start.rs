@@ -37,3 +37,30 @@ mod system_start {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_system_start() {
+        let system_start = SystemStart::new("initializer".to_string());
+        assert_eq!(system_start.initializer(), "initializer");
+    }
+
+    #[test]
+    fn test_only_initializer() {
+        let system_start = SystemStart::new("initializer".to_string());
+        assert!(system_start.only_initializer(&"initializer".to_string()));
+        assert!(!system_start.only_initializer(&"not_initializer".to_string()));
+    }
+
+    #[test]
+    fn test_serialization_deserialization() {
+        let system_start = SystemStart::new("initializer".to_string());
+        let serialized = system_start.try_to_vec().unwrap();
+        let deserialized = SystemStart::try_from_slice(&serialized).unwrap();
+        
+        assert_eq!(system_start.initializer(), deserialized.initializer());
+    }
+}
